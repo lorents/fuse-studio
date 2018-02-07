@@ -6,6 +6,11 @@ namespace Outracks.Fuse.Inspector.Editors
 	
 	class SwitchEditor
 	{
+		public static IControl Create(IAttribute attribute)
+		{
+			return Create(attribute.StringValue.AsBoolean(false));
+		}
+
 		public static IControl Create(IProperty<bool> enabled)
 		{
 			return Create(enabled, circleRadius: 18, additionalWidth: 11);

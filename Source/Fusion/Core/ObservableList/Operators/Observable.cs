@@ -10,7 +10,8 @@ namespace Outracks.Fusion
 		{
 			return self.Scan(
 				ImmutableList<T>.Empty,
-				(list, changes) => changes.Apply(list));
+				(list, changes) => changes.Apply(list))
+				.StartWith(ImmutableList<T>.Empty); 
 		}
 
 		public static IObservableList<T> ToObservableList<T>(this IObservable<IImmutableList<T>> self)

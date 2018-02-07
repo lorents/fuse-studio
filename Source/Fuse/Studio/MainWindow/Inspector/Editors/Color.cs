@@ -7,7 +7,7 @@ namespace Outracks.Fuse.Inspector.Editors
 
 	static class ColorEditor
 	{
-		public static IControl Create(IAttribute<Color> property, IEditorFactory editors)
+		public static IControl Create(IAttribute property, IEditorFactory editors)
 		{
 			return Layout.Dock()
 				.Right(editors.ExpressionButton(property))
@@ -18,7 +18,7 @@ namespace Outracks.Fuse.Inspector.Editors
 					.Fill(TextBox.Create(
 							property.StringValue,
 							foregroundColor: Theme.DefaultText)
-						.WithPlaceholderText(property.HasLocalValue())
+						.WithPlaceholderText(property.HasValue)
 						.WithBackground(Theme.FieldBackground))
 					.WithPadding(new Thickness<Points>(1))
 					.WithOverlay(Shapes.Rectangle(Theme.FieldStroke))
@@ -26,7 +26,7 @@ namespace Outracks.Fuse.Inspector.Editors
 					.WithHeight(CellLayout.DefaultCellHeight));
 		}
 
-		static IControl CreateWell(IAttribute<Color> color)
+		static IControl CreateWell(IAttribute color)
 		{
 			var length = CellLayout.DefaultCellHeight - 2;
 
@@ -39,9 +39,9 @@ namespace Outracks.Fuse.Inspector.Editors
 				Point.Create(new Points(length), new Points(0)),
 				Stroke.Create(1, diagonalBrush));
 
-			return CreateWell(color, color.HasLocalValue())
+			return CreateWell(color.StringValue.AsColor(Color.White), color.HasValue)
 				.WithPadding(new Thickness<Points>(1))
-				.WithBackground(diagonal.HideWhen(color.HasLocalValue()))
+				.WithBackground(diagonal.HideWhen(color.HasValue))
 				.WithSize(new Size<Points>(length, length))
 				.Center();
 		}

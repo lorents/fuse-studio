@@ -11,7 +11,7 @@ namespace Outracks.Simulator
 
 		readonly Action _wait;
 
-		internal Task(Action wait)
+		public Task(Action wait)
 		{
 			_wait = wait;
 		}
@@ -34,7 +34,11 @@ namespace Outracks.Simulator
 
 				return _result;
 			}
-			internal set { _result = value; }
+			set
+			{
+				_result = value;
+				IsCompleted = true;
+			}
 		}
 	}
 

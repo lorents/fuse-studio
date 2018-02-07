@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Outracks.Fuse.Live;
+using Outracks.Fuse.Model;
 using Outracks.Fusion;
 using Outracks.IO;
 
@@ -46,52 +49,52 @@ namespace Outracks.Fuse.Refactoring
 		}
 
 		public ExtractClassButtonViewModel(
-			IProject project, 
-			IContext context, 
+			ProjectModel project, 
 			Action<IExtractClassViewModel> openDialogAction, 
 			IFileSystem fileSystem,
 			IClassExtractor classExtractor)
 		{
 			_hovering = new BehaviorSubject<bool>(false);
 
-			var allClassNames = project.Classes.Select(
-				elements =>
-				{
-					var elementList = elements as IList<IElement> ?? elements.ToList();
-					if (!elementList.Any())
-					{
-						return Observable.Return(new List<Optional<string>>());
-					}
-					return elementList.Select(el => el.UxClass()).CombineLatest();
-				}).Switch().Select(x => new HashSet<string>(x.NotNone())).Replay(1).RefCount();
+			//var allClassNames = project.Classes.ToObservableImmutableList().Select(
+			//	elementList =>
+			//	{
+			//		if (!elementList.Any())
+			//		{
+			//			return Observable.Return(new List<Optional<string>>());
+			//		}
+			//		return elementList.Select(el => el.UxClass()).CombineLatest();
+			//	}).Switch().Select(x => new HashSet<string>(x.NotNone())).Replay(1).RefCount();
 			
-			var canExtractSelectedElement = context.CurrentSelection.IsEmpty.IsFalse()
-				.And(context.CurrentSelection.Parent.IsEmpty.IsFalse()) // Not the App(root) element
-				// We can't extract an element which is already a class
-				.And(context.CurrentSelection.UxClass().Is(Optional.None()))
-				// Extracting classes listed in _invalidUxClassNames creates invalid UX
-				.And(context.CurrentSelection.Name.Select(name => !_invalidUxClassNames.Contains(name)))
-				.Replay(1)
-				.RefCount();
+			//var canExtractSelectedElement = context.CurrentSelection.IsEmpty.IsFalse()
+			//	.And(context.CurrentSelection.Parent.IsEmpty.IsFalse()) // Not the App(root) element
+			//	// We can't extract an element which is already a class
+			//	.And(context.CurrentSelection.UxClass().Is(Optional.None()))
+			//	// Extracting classes listed in _invalidUxClassNames creates invalid UX
+			//	.And(context.CurrentSelection.Name.Select(name => !_invalidUxClassNames.Contains(name)))
+			//	.Replay(1)
+			//	.RefCount();
 
-			_highlightSelectedElement = _hovering.And(canExtractSelectedElement);
+			_highlightSelectedElement = Observable.Return(false);
+			//_highlightSelectedElement = _hovering.And(canExtractSelectedElement);
 
-			_command = Command.Create(
-				canExtractSelectedElement,
-				context.CurrentSelection.Name.CombineLatest(
-					allClassNames,
-					(selectedElementName, classNames) =>
-						(Action) (() =>
-						{
-							openDialogAction(
-								 new ExtractClassViewModel(
-								context: context,
-								suggestedName: GetClassNameSuggestion(selectedElementName, classNames),
-								allClassNames: allClassNames,
-								classExtractor: classExtractor,
-								fileSystem: fileSystem,
-								project: project));
-						})));
+			_command = Command.Disabled;
+			//_command = Command.Create(
+			//	canExtractSelectedElement,
+			//	context.CurrentSelection.Name.CombineLatest(
+			//		allClassNames,
+			//		(selectedElementName, classNames) =>
+			//			(Action) (() =>
+			//			{
+			//				openDialogAction(
+			//					 new ExtractClassViewModel(
+			//					context: context,
+			//					suggestedName: GetClassNameSuggestion(selectedElementName, classNames),
+			//					allClassNames: allClassNames,
+			//					classExtractor: classExtractor,
+			//					fileSystem: fileSystem,
+			//					project: project));
+			//			})));
 		}
 
 		static string GetClassNameSuggestion(string selectedElementName, HashSet<string> classNames)

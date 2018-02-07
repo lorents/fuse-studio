@@ -1,5 +1,6 @@
 ﻿using System;
 using Outracks.Fuse.Designer;
+using Outracks.Fuse.Model;
 
 namespace Outracks.Fuse.Inspector.Sections
 {
@@ -7,7 +8,7 @@ namespace Outracks.Fuse.Inspector.Sections
 
 	class CommonSection
 	{
-		public static IControl Create(IElement element, IProject project, IEditorFactory editors, IPopover popover)
+		public static IControl Create(IElement element, ProjectModel project, IEditorFactory editors, IPopover popover)
 		{
 			return Layout.StackFromTop(
 				popover.CreatePopover(RectangleEdge.Bottom, 
@@ -57,8 +58,8 @@ namespace Outracks.Fuse.Inspector.Sections
 								.WithOverlay(Shapes.Rectangle(stroke: Theme.FieldStroke)))
 							.WithWidth(279);
 
-						var elementChanged = element.SimulatorId;
-						elementChanged.ConnectWhile(result.IsRooted).Subscribe(id => dialog.IsVisible.OnNext(false));
+						//var elementChanged = element.SimulatorId;
+						//elementChanged.ConnectWhile(result.IsRooted).Subscribe(id => dialog.IsVisible.OnNext(false));
 
 						return result;
 					}),
@@ -73,7 +74,7 @@ namespace Outracks.Fuse.Inspector.Sections
 				ContextualSections(element, project, editors));
 		}
 
-		public static IControl ContextualSections(IElement element, IProject project, IEditorFactory editors)
+		public static IControl ContextualSections(IElement element, ProjectModel project, IEditorFactory editors)
 		{
 			return Layout.StackFromTop(
 				CircleSection.Create(element, editors),

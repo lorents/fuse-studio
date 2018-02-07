@@ -7,6 +7,11 @@ namespace Outracks.Fuse.Inspector.Editors
 
 	static class ListButtons
 	{
+		public static IControl RemoveButton(Command command)
+		{
+			return RemoveButton(() => command.ExecuteOnce(), command.IsEnabled);
+		}
+
 		public static IControl RemoveButton(Action clicked, IObservable<bool> isEnabled = null)
 		{
 			isEnabled = isEnabled ?? Observable.Return(true);
@@ -21,6 +26,11 @@ namespace Outracks.Fuse.Inspector.Editors
 					stroke: stroke)
 				.WithWidth(Width)
 				.WithHeight(Width));
+		}
+
+		public static IControl AddButton(Command command)
+		{
+			return AddButton(() => command.ExecuteOnce(), command.IsEnabled);
 		}
 
 		public static IControl AddButton(Action clicked, IObservable<bool> isEnabled = null)

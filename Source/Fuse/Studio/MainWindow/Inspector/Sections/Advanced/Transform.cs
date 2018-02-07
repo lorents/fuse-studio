@@ -1,4 +1,6 @@
-﻿namespace Outracks.Fuse.Inspector.Sections
+﻿using Outracks.Fuse.Editing;
+
+namespace Outracks.Fuse.Inspector.Sections
 {
 	using Fusion;
 
@@ -8,15 +10,15 @@
 		{
 			element = element.As("Fuse.Elements.Element");
 
-			var snapMin = element.GetBoolean("SnapMinTransform", false);
-			var snapMax = element.GetBoolean("SnapMaxTransform", false);
-			var origin = element.GetEnum("TransformOrigin", TransformOrigin.Center);
+			var snapMin = element["SnapMinTransform"];
+			var snapMax = element["SnapMaxTransform"];
+			var origin = element["TransformOrigin"];
 
 			return Layout.StackFromTop(
 				Separator.Weak,
 				Spacer.Medium,
 
-				editors.Dropdown(origin).WithLabel("Transform Origin")
+				editors.Dropdown(origin, TransformOrigin.Center).WithLabel("Transform Origin")
 					.WithInspectorPadding(),
 			
 				Spacer.Medium,

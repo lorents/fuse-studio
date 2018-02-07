@@ -16,10 +16,10 @@ namespace Outracks.Fuse.Inspector.Sections
 		static IControl CreateShadowRow(IElement shadow, IEditorFactory editors)
 		{
 			var name = shadow.UxName();
-			var angle = shadow.GetAngle("Angle", 90);
-			var color = shadow.GetColor("Color", Color.Black);
-			var distance = shadow.GetPoints("Distance", 0);
-			var size = shadow.GetPoints("Size", 5);
+			var angle = shadow["Angle"];//, 90);
+			var color = shadow["Color"];//, Color.Black);
+			var distance = shadow["Distance"];//, 0);
+			var size = shadow["Size"];//, 5);
 
 			return Layout.StackFromTop(
 				editors.NameRow("Shadow Name", name),

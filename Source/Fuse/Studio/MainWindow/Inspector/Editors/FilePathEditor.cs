@@ -8,7 +8,7 @@ namespace Outracks.Fuse.Inspector.Editors
 	{
 		public static IControl Create(
 			IEditorFactory editors,
-			IAttribute<string> property,
+			IAttribute property,
 			IObservable<AbsoluteDirectoryPath> projectRoot,
 			FileFilter[] fileFilters,
 			Text placeholderText = default(Text),

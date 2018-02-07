@@ -2,9 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Fuse.Preview;
+using Outracks.Fuse.Model;
+using Outracks.Fuse.Protocol;
 
 namespace Outracks.Fuse.Designer
 {
@@ -35,16 +38,43 @@ namespace Outracks.Fuse.Designer
 		}
 	}
 
-	class LogView
+	public class LogView : IOutput, IStatus
 	{
-		public LogView(IObservable<string> mainLogStream, IObservable<IBinaryMessage> deviceMessages, ErrorView errorView)
+		readonly NotificationBar _status;
+		readonly ReplayQueueSubject<string> _mainLogStream = new ReplayQueueSubject<string>();
+		readonly ReplayQueueSubject<IBinaryMessage> _deviceMessages = new ReplayQueueSubject<IBinaryMessage>();
+		readonly Subject<string> _clientRemoved = new Subject<string>();
+		public void Write(string message)
+		{
+			_mainLogStream.OnNext(message);
+		}
+
+		public void Write(IBinaryMessage message)
+		{
+			_deviceMessages.OnNext(message);
+		}
+
+		public void Write(IEventData weirdEvent)
+		{
+			Console.WriteLine("What to do with " + weirdEvent + "?");
+		}
+
+		public void OnClientDisconnected(string client)
+		{
+			_clientRemoved.OnNext(client);
+		}
+
+
+		public LogView(ProjectModel project, IScheduler scheduler)
 		{
 			var showLog = UserSettings.Bool("ShowLog").OrTrue();
 
 			IsExpanded = showLog;
 
+			_status = new NotificationBar(Property.Constant(false), scheduler);
+			var errorView = new ErrorView(project, _deviceMessages, _clientRemoved, (proj, source) => { /* TODO */ });
 			var logChanged = new Subject<Unit>();
-			var logTab = new LogViewTab("Log", CreateLogView(mainLogStream, deviceMessages, logChanged), logChanged.Select(_ => true));
+			var logTab = new LogViewTab("Log", CreateLogView(_mainLogStream, _deviceMessages, logChanged), logChanged.Select(_ => true));
 			var problemsTab = new LogViewTab("Problems", errorView.Create(), errorView.NotifyUser);
 
 			var activeTab = new BehaviorSubject<LogViewTab>(logTab);
@@ -52,6 +82,11 @@ namespace Outracks.Fuse.Designer
 			TabContent = activeTab
 				.Select(tab => tab.Content)
 				.Switch();
+		}
+
+		public IControl NotifiactionBar
+		{
+			get { return _status.Control; }
 		}
 
 		static IControl CreateLogView(IObservable<string> mainLogStream, IObservable<IBinaryMessage> deviceMessages, ISubject<Unit> changed)
@@ -128,6 +163,27 @@ namespace Outracks.Fuse.Designer
 		public IProperty<bool> IsExpanded { get; set; }
 		public IControl TabHeader { get; set; }
 		public IControl TabContent { get; set; }
+
+		public void Busy(string message, params Option[] options)
+		{
+			_status.Busy(message, options);
+		}
+
+		public void Error(string message, string details, params Option[] options)
+		{
+			Write(details);
+			_status.Error(message, details, options);
+		}
+
+		public void Error(string message, params Option[] options)
+		{
+			_status.Error(message, options);
+		}
+
+		public void Ready()
+		{
+			_status.Ready();
+		}
 	}
 
 	class DeviceLog

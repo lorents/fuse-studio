@@ -4,10 +4,11 @@ namespace Outracks.Fuse.Inspector.Editors
 	
 	static class SliderEditor
 	{
-		public static IControl Create(IAttribute<double> value, double min, double max)
+		public static IControl Create(IAttribute value, double min, double max)
 		{
-			return Slider.Create(value, min, max)
-				.WithHeight(CellLayout.DefaultCellHeight);
+			return Control.Empty;
+			//return Slider.Create(value.ScrubValue, min, max)
+			//	.WithHeight(CellLayout.DefaultCellHeight);
 		}
 	}
 }

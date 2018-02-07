@@ -2,6 +2,8 @@
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Outracks.Fuse.Live;
+using Outracks.Fuse.Model;
 using Outracks.Fusion;
 
 namespace Outracks.Fuse.Hierarchy
@@ -13,8 +15,8 @@ namespace Outracks.Fuse.Hierarchy
 			readonly BehaviorSubject<bool> _expandToggleEnabled;
 			readonly BehaviorSubject<int> _depth = new BehaviorSubject<int>(0);
 
-			readonly BehaviorSubject<Optional<ILiveElement>> _element =
-				new BehaviorSubject<Optional<ILiveElement>>(Optional.None<ILiveElement>());
+			readonly BehaviorSubject<Optional<ElementModel>> _element =
+				new BehaviorSubject<Optional<ElementModel>>(Optional.None<ElementModel>());
 
 			readonly Command _expandToggleCommand;
 			readonly IObservable<string> _headerText;
@@ -46,24 +48,15 @@ namespace Outracks.Fuse.Hierarchy
 				_isExpanded = new BehaviorSubject<bool>(false);
 
 				_selectCommand = Command.Create(
-					ElementSelect(el => Optional.Some((Action) (() => _tree._context.Select(el))), Optional.None<Action>()));
+					ElementSelect(el => Optional.Some<Action>(() => _tree._context.Select(el)), Optional.None<Action>()));
 
-				_headerText = ElementSwitch(
-					el => el.Name.CombineLatest(
-						el.UxGlobal(),
-						el.UxProperty(),
-						elUxClass,
-						el.UxInnerClass(),
-						(name, uxGlobal, uxProperty, uxClass, uxInnerClass) => uxGlobal.Or(uxProperty).Or(uxClass)
-							.Or(uxInnerClass)
-							.Select(uxAttrName => uxAttrName + " (" + name + ")").Or(name)),
-					string.Empty);
+				_headerText = ElementSwitch(GetName, string.Empty);
 
 				_scopeIntoClassCommand = Command.Create(
-					ElementSwitch(
-						el => elUxClass
+					ElementSwitch(el => 
+						elUxClass
 							.CombineLatest(_depth, (uxClass, depth) => uxClass.Where(_ => depth > 0) /* disallow scope into for root */)
-							.SelectPerElement(_ => (Action) (() => _tree._context.PushScope(el, el)))));
+							.Select(uxClass => (Action) (() => _tree._context.PushScope(el)))));
 
 				_expandToggleCommand = Command.Create(
 					ElementSwitch(
@@ -86,7 +79,26 @@ namespace Outracks.Fuse.Hierarchy
 						highlightSelectedElement && !(isSelected | isAncestorSelected));
 			}
 
-			public Optional<ILiveElement> Element
+			static IObservable<string> GetName(ElementModel el)
+			{
+				return el.Name.CombineLatest(
+					el.UxGlobal(), el.UxProperty(), el.UxClass(), el.UxInnerClass(),
+					(name, uxGlobal, uxProperty, uxClass, uxInnerClass) =>
+					{
+						var uxAttrName = 
+							(uxGlobal != "") ? uxGlobal :
+							(uxProperty != "") ? uxProperty :
+							(uxClass != "") ? uxClass :
+							(uxInnerClass != "") ? uxInnerClass 
+							: "";
+
+						return (uxAttrName != "")
+							? uxAttrName + " (" + name + ")"
+							: name;
+					});
+			}
+
+			public Optional<ElementModel> Element
 			{
 				get { return _element.Value; }
 			}
@@ -114,7 +126,7 @@ namespace Outracks.Fuse.Hierarchy
 			}
 
 			public void Update(
-				ILiveElement element,
+				ElementModel element,
 				int depth,
 				int rowOffset,
 				int expandedDescendantCount,
@@ -137,34 +149,39 @@ namespace Outracks.Fuse.Hierarchy
 
 			public void Detach()
 			{
-				_element.OnNextDistinct(Optional.None<ILiveElement>());
+				_element.OnNextDistinct(Optional.None<ElementModel>());
 				// Hide away outside visible area
 				_rowOffset.OnNextDistinct(-10);
 				_expandedDescendantCount.OnNextDistinct(0);
 			}
 
-			IObservable<T> ElementSwitch<T>(Func<ILiveElement, IObservable<T>> selector, T defaultValue)
+			IObservable<Optional<T>> ElementSwitch<T>(Func<ElementModel, IObservable<T>> selector)
+			{
+				return _element
+					.Select(maybeElement =>
+						maybeElement.MatchWith(
+							some: element => selector(element).Select(Optional.Some),
+							none: () => Observable.Return(Optional.None<T>())))
+					.Switch();
+			}
+				
+			IObservable<T> ElementSwitch<T>(Func<ElementModel, IObservable<T>> selector, T defaultValue)
 			{
 				return _element.Switch(y => y.Select(selector).FirstOr(Observable.Return(defaultValue)));
 			}
 
-			IObservable<T> ElementSelect<T>(Func<ILiveElement, T> selector, T defaultValue)
+			IObservable<T> ElementSelect<T>(Func<ElementModel, T> selector, T defaultValue)
 			{
 				return _element.Select(el => el.Select(selector).Or(defaultValue));
 			}
 
-			IObservable<Optional<T>> ElementSwitch<T>(Func<ILiveElement, IObservable<Optional<T>>> selector)
+			Optional<Action> GetDropAction(ElementModel thisElement, DropPosition position, object dragged)
 			{
-				return _element.Switch(el => el.Select(selector).Or(Observable.Return(Optional.None<T>())));
-			}
-
-			Optional<Action> GetDropAction(ILiveElement thisElement, DropPosition position, object dragged)
-			{
-				var draggedElement = dragged as ILiveElement;
+				var draggedElement = dragged as ElementModel;
 				var sourceFragment = dragged as SourceFragment;
 				var bytes = dragged as byte[];
 
-				Func<SourceFragment> cut;
+				//TODO: Func<SourceFragment> cut;
 				if (draggedElement != null)
 				{
 					var node = thisElement;
@@ -172,18 +189,18 @@ namespace Outracks.Fuse.Hierarchy
 					{
 						if (node.Equals(draggedElement))
 							return Optional.None();
-						node = node.Parent as ILiveElement;
+						node = node.Parent.IsUnknown ? null : node.Parent;
 					}
-
-					cut = () => draggedElement.Cut().Result;
+					
+					//TODO: cut = () => draggedElement.Cut().Result;
 				}
 				else if (bytes != null)
 				{
-					cut = () => SourceFragment.FromBytes(bytes);
+					//TODO: cut = () => SourceFragment.FromBytes(bytes);
 				}
 				else if (sourceFragment != null)
 				{
-					cut = () => sourceFragment;
+					//TODO: cut = () => sourceFragment;
 				}
 				else
 				{
@@ -197,9 +214,9 @@ namespace Outracks.Fuse.Hierarchy
 							return (Action) (
 								() =>
 								{
-									var src = cut();
-									var element = thisElement.Paste(src);
-									_tree._context.Select(element);
+									//TODO: var src = cut();
+									//TODO: thisElement.Paste(src);
+									//TODO move to paste: _tree._context.Select(element);
 								});
 						break;
 					case DropPosition.After:
@@ -207,9 +224,12 @@ namespace Outracks.Fuse.Hierarchy
 						if (_depth.Value > 0)
 							return (Action) (() =>
 							{
-								var src = cut();
-								var element = position == DropPosition.Before ? thisElement.PasteBefore(src) : thisElement.PasteAfter(src);
-								_tree._context.Select(element);
+								//var src = cut();
+								//if (position == DropPosition.Before)
+								//	thisElement.PasteBefore(src);
+								//else 
+								//	thisElement.PasteAfter(src);
+								//TODO move to paste: _tree._context.Select(element);
 							});
 						break;
 				}
@@ -242,7 +262,7 @@ namespace Outracks.Fuse.Hierarchy
 
 			public Command ExitHoverCommand
 			{
-				get { return Command.Enabled(() => _tree._context.Preview(Fuse.Element.Empty)); }
+				get { return Command.Create(_element.SelectPerElement(el => (Action)(() => _tree._context.Preview(new UnknownElement())))); }
 			}
 
 			public IObservable<object> DraggedObject
@@ -254,7 +274,7 @@ namespace Outracks.Fuse.Hierarchy
 			{
 				get
 				{
-					return _tree._elementMenuFactory(_element.Select(el => el.FirstOr(Fuse.Element.Empty)).Switch());
+					return Menu.Empty; //_tree._elementMenuFactory(_element.Select(el => el.FirstOr(Editing.Element.Empty)).Switch());
 				}
 			}
 

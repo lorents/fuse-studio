@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using Outracks.Fuse.Designer;
+using Fuse.Preview;
+using Outracks.Fuse.Model;
 
 namespace Outracks.Fuse.Stage
 {
@@ -12,23 +13,34 @@ namespace Outracks.Fuse.Stage
 
 	class StageController : IStage, IDisposable
 	{
+		public readonly IProperty<bool> SelectionEnabled = Property.Create(false);
+
 		readonly BehaviorSubject<IImmutableList<IViewport>> _viewports = new BehaviorSubject<IImmutableList<IViewport>>(ImmutableList<IViewport>.Empty);
 		readonly BehaviorSubject<Optional<IViewport>> _focusedViewport = new BehaviorSubject<Optional<IViewport>>(Optional.None());
-		
-		readonly ViewportFactory _viewportFactory;
+
+		readonly ContextController _context;
+		readonly PreviewController _preview;
+		readonly IFuse _fuse;
+
+		readonly Subject<OpenGlVersion> _glVersion = new Subject<OpenGlVersion>();
+
 		readonly PreviewDevices _previewDevices;
+		readonly IOutput _output;
 		readonly IProperty<VirtualDevice> _latestDevice;
 
-		readonly IProperty<bool> _selectionEnabled;
 		
 		public StageController(
-			ViewportFactory viewportFactory,
+			ContextController context, 
+			PreviewController preview, 
+			IFuse fuse, 
 			PreviewDevices previewDevices,
-			IProperty<bool> selectionEnabled)
+			IOutput output)
 		{
-			_viewportFactory = viewportFactory;
+			_context = context;
+			_preview = preview;
+			_fuse = fuse;
 			_previewDevices = previewDevices;
-			_selectionEnabled = selectionEnabled;
+			_output = output;
 
 			var fallbackDevice = previewDevices.DefaultDevice
 				.Select(dev => new VirtualDevice(dev, dev.DefaultOrientation))
@@ -39,6 +51,14 @@ namespace Outracks.Fuse.Stage
 				.Switch();
 
 			_latestDevice = device;
+		}
+
+		public void Start()
+		{
+			OpenNewViewport();
+
+			_preview.BuildOptions = _context.Project.BuildArgs.BuildArguments.FirstAsync().Wait();
+			_preview.Build();
 		}
 
 		public IObservable<IEnumerable<IViewport>> Viewports
@@ -59,7 +79,7 @@ namespace Outracks.Fuse.Stage
 			}
 		}
 
-		void OpenViewport(VirtualDevice virtualDevice)
+		public void OpenViewport(VirtualDevice virtualDevice)
 		{
 			var viewport = CreateViewport(virtualDevice);
 
@@ -86,7 +106,7 @@ namespace Outracks.Fuse.Stage
 
 		Menu CreateMenu(IObservable<Optional<IViewport>> viewport)
 		{
-			return Menu.Toggle("Selection", _selectionEnabled, HotKey.Create(ModifierKeys.Meta, Key.I))
+			return Menu.Toggle("Selection", SelectionEnabled, HotKey.Create(ModifierKeys.Meta, Key.I))
 				+ Menu.Separator
 				+ Menu.Item("New viewport", NewViewport, hotkey: HotKey.Create(ModifierKeys.Meta, Key.T))
 				+ Menu.Item("Close viewport", CloseFocusedViewport, hotkey: HotKey.Create(ModifierKeys.Meta, Key.W))
@@ -122,20 +142,29 @@ namespace Outracks.Fuse.Stage
 
 		IViewport CreateViewport(VirtualDevice virtualDevice)
 		{
-			return _viewportFactory.Create(
-				initialDevice: virtualDevice,
-				onFocus: ViewportFocused,
-				onClose: ViewportClosed,
-				menu: self => CreateMenu(Observable.Return(Optional.Some(self))));
+			_output.Busy("Launching app...");
+			return new ViewportController(
+				virtualDevice, ViewportFocused, ViewportClosed, self => CreateMenu(Observable.Return(Optional.Some<IViewport>(self))),
+				_preview, _fuse,
+				unoHost =>
+				{
+					Gizmos.Initialize(unoHost, SelectionEnabled, _context);
+					_output.Ready(); // we should block CreateViewport until this
+				},
+				_glVersion);
 		}
 
 		public Command NewViewport
 		{
 			get
 			{
-				return _latestDevice.Switch(latestDevice =>
-					Command.Enabled(() => OpenViewport(latestDevice)));
+				return Command.Enabled(OpenNewViewport);
 			}
+		}
+
+		public void OpenNewViewport()
+		{
+			OpenViewport(_latestDevice.FirstAsync().Wait());
 		}
 
 		Command CloseFocusedViewport

@@ -1,5 +1,4 @@
-﻿using Outracks.Fuse.Inspector.Editors;
-
+﻿
 namespace Outracks.Fuse.Inspector.Sections
 {
 	using Fusion;
@@ -8,8 +7,8 @@ namespace Outracks.Fuse.Inspector.Sections
 	{
 		public static IControl Create(IElement element, IEditorFactory editors)
 		{
-			var spacing = element.GetPoints("CellSpacing", 0.0);
-			var order = element.GetEnum("ChildOrder", GridChildOrder.RowMajor);
+			var spacing = element["CellSpacing"];
+			var order = element["ChildOrder"];
 
 			return Layout.StackFromTop(
 					Spacer.Medium,
@@ -17,7 +16,7 @@ namespace Outracks.Fuse.Inspector.Sections
 					Layout.StackFromLeft(
 							editors.Field(spacing).WithLabelAbove("Cell Spacing"),
 							Spacer.Medium,
-							editors.Dropdown(order).WithLabelAbove("Child Order"))
+							editors.Dropdown(order, GridChildOrder.RowMajor).WithLabelAbove("Child Order"))
 						.WithInspectorPadding(),
 
 					Spacer.Medium, Separator.Weak, Spacer.Medium,
@@ -35,9 +34,9 @@ namespace Outracks.Fuse.Inspector.Sections
 		static IControl Dimension(IElement element, IEditorFactory editors, string name)
 		{
 			var plural = name + "s";
-			var p = element.GetString(plural, "");
-			var count = element.GetString(name + "Count", "");
-			var def = element.GetString("Default" + name, "");
+			var p = element[plural];
+			var count = element[name + "Count"];
+			var def = element["Default" + name];
 			return Layout.StackFromTop(
 				Layout.Dock()
 					.Right(editors.Field(def)

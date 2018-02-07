@@ -14,16 +14,20 @@ namespace Outracks.Fuse.Dashboard
 	
 	class ProjectList
 	{
+		readonly RecentProjects _recentProjects;
 		readonly IShell _shell;
 		readonly ISubject<ProjectListItem> _selectedItem;
 		readonly IObservable<IImmutableList<ProjectListItem>> _allProjectItems;
 
-		public ProjectList(IShell shell, CreateProject createProject, IDialog<object> parent)
+
+
+		public ProjectList(IShell shell, CreateProject createProject, IDialog<object> parent, RecentProjects recentProjects)
 		{
 			_shell = shell;
+			_recentProjects = recentProjects;
 
-			var recentProjectItems = RecentProjects.All
-				.SelectPerElement(project =>
+			var recentProjectItems = _recentProjects.All
+				.CachePerElement(project =>
 					new ProjectListItem(
 						menuItemName: "Open",
 						title: project.Name,
@@ -135,12 +139,12 @@ namespace Outracks.Fuse.Dashboard
 				+ Menu.Item("Remove from list", RemoveRecentProject(project));
 		}
 
-		static Command RemoveRecentProject(IObservable<Optional<AbsoluteFilePath>> path)
+		Command RemoveRecentProject(IObservable<Optional<AbsoluteFilePath>> path)
 		{
 			return path.Switch(p => 
 				Command.Create(
 					isEnabled: p.HasValue,
-					action: () => { var ignore = RecentProjects.Remove(p.Value); }));
+					action: () => _recentProjects.Remove(p.Value)));
 		}
 	
 		Command MoveSelection(int delta)

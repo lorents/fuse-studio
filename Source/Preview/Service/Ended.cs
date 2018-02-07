@@ -1,5 +1,4 @@
 using System.IO;
-using Outracks.IO;
 
 namespace Outracks.Simulator.Protocol
 {
@@ -10,13 +9,11 @@ namespace Outracks.Simulator.Protocol
 
 		public IBinaryMessage Command { get; set; }
 		public bool Success { get; set; }
-		public AbsoluteDirectoryPath BuildDirectory { get; set; } 
-
+		
 		public void WriteDataTo(BinaryWriter writer)
 		{
 			Command.WriteTo(writer);
 			writer.Write(Success);
-			AbsoluteDirectoryPath.Write(writer, BuildDirectory);
 		}
 
 		public static Ended ReadDataFrom(BinaryReader reader)
@@ -25,7 +22,6 @@ namespace Outracks.Simulator.Protocol
 			{
 				Command = BinaryMessage.ReadFrom(reader),
 				Success = reader.ReadBoolean(),
-				BuildDirectory = AbsoluteDirectoryPath.Read(reader)
 			};
 		}
 	}

@@ -1,6 +1,7 @@
 using System;
 using System.Reactive.Linq;
 using Outracks.Fuse.Inspector.Editors;
+using Outracks.Fuse.Stage;
 
 namespace Outracks.Fuse.Inspector.Sections
 {
@@ -10,8 +11,8 @@ namespace Outracks.Fuse.Inspector.Sections
 	{
 		public static IControl Create(IElement element, IEditorFactory editors)
 		{
-			var margin = element.GetThickness("Margin", new Thickness<Points>(0, 0, 0, 0));
-			var padding = element.GetThickness("Padding", new Thickness<Points>(0, 0, 0, 0));
+			var margin = element["Margin"];
+			var padding = element["Padding"];
 
 			return Layout.StackFromTop(
 					ThicknessEditor(margin, editors).WithLabel("Margin"),
@@ -20,15 +21,13 @@ namespace Outracks.Fuse.Inspector.Sections
 				.WithInspectorPadding();
 		}
 
-		static IEditorControl ThicknessEditor(IAttribute<Thickness<Points>> thickness, IEditorFactory editors)
+		static IEditorControl ThicknessEditor(IAttribute thickness, IEditorFactory editors)
 		{
 			var expressions = Decompose(thickness);
 			var cells =
 				expressions.Select(
 					(prop, edge) =>
-						TextBox.Create(
-								prop.Convert(UxSizeParser.Serialize, s => s.TryParsePoints().Value.Or(new Points(0))),
-								foregroundColor: Theme.DefaultText)
+						TextBox.Create(prop, foregroundColor: Theme.DefaultText)
 							.WithPadding(new Thickness<Points>(3,0,0,0))
 							.WithOverlay(Shapes.Rectangle(fill: Theme.FieldStroke.Brush).WithSize(new Size<Points>(2, 2)).Dock(edge))
 							.WithOverlay(Shapes.Rectangle(Theme.FieldStroke))
@@ -37,7 +36,7 @@ namespace Outracks.Fuse.Inspector.Sections
 							.WithHeight(CellLayout.DefaultCellHeight)
 							.SetToolTip(edge.ToString()));
 
-			return new EditorControl<Thickness<Points>>(
+			return new EditorControl(
 				editors, thickness,
 				Layout.StackFromLeft(
 					cells.Left, Spacer.Small, 
@@ -48,25 +47,32 @@ namespace Outracks.Fuse.Inspector.Sections
 					editors.ExpressionButton(thickness).WithPadding(right: new Points(1))));
 		}
 
-		static Thickness<IAttribute<Points>> Decompose(IAttribute<Thickness<Points>> thickness)
+		static Thickness<IProperty<string>> Decompose(IAttribute attribute)
 		{
-			return new Thickness<IAttribute<Points>>(
-				left: Focus(thickness, t => t.Left, (t, v) => t.With(left: v)),
-				top: Focus(thickness, t => t.Top, (t,v) => t.With(top: v)),
-				right: Focus(thickness, t => t.Right, (t, v) => t.With(right: v)),
-				bottom: Focus(thickness, t => t.Bottom, (t, v) => t.With(bottom: v)));
+			return new Thickness<IProperty<string>>(
+				left: Component(0, of: attribute),
+				top: Component(1, of: attribute),
+				right: Component(2, of: attribute),
+				bottom: Component(3, of: attribute));
 		}
 
-		private static IAttribute<Points> Focus(
-			IAttribute<Thickness<Points>> thickness,
-			Func<Thickness<Points>, Points> convert,
-			Func<Thickness<Points>, Points, Thickness<Points>> combine)
+		static IProperty<string> Component(int index, IAttribute of)
 		{
-			return thickness.Focus(
-				e => e.Select(convert, t => t.Value.ToString("0.##")),
-				convert,
-				combine,
-				Command.Enabled(() => thickness.Take(1).Subscribe(lastValue => thickness.Write(combine(lastValue, new Points(0))))));
+			return of.StringValue.Convert(
+				convert: full =>
+				{
+					var parts = full.Split(",");
+					var boundedIndex = index % parts.Length;
+					return parts[boundedIndex];
+				},
+				convertBack: (full, part) =>
+				{
+					var parts = full.Or("").Split(",");
+					var boundedIndex = index % parts.Length;
+					parts[boundedIndex] = part;
+					return parts.Join(", ");
+				});
 		}
+
 	}
 }

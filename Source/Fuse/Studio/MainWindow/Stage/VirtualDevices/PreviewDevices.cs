@@ -3,8 +3,8 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Reactive;
 using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Security;
+using Fuse.Preview;
 
 namespace Outracks.Fuse.Stage
 {
@@ -13,18 +13,19 @@ namespace Outracks.Fuse.Stage
 
 	public class PreviewDevices
 	{
-		public IObservable<string> LogMessages { get { return _logMessages; }}
-		readonly ISubject<string> _logMessages = new Subject<string>();
-		readonly IProject _project;
+		readonly AbsoluteDirectoryPath _projectDirectory;
 		readonly IShell _fileSystem;
+		readonly IOutput _output;
 
 		public PreviewDevices(
-			IProject project,
-			IShell fileSystem)
+			AbsoluteDirectoryPath projectDirectory,
+			IShell fileSystem,
+			IOutput output)
 		{
-			_project = project;
+			_projectDirectory = projectDirectory;
 			_fileSystem = fileSystem;
-			Devicess = project.RootDirectory.Switch(path => WatchDevicesList().StartWith(LoadDevicesForProject(path)));
+			_output = output;
+			Devicess = WatchDevicesList().StartWith(LoadDevicesForProject(_projectDirectory));
 			DefaultDevice = Devicess.Select(devices => devices.FirstOrNone(info => info.IsDefault).Or(Stage.Devices.Default));
 		}
 
@@ -34,12 +35,11 @@ namespace Outracks.Fuse.Stage
 
 		public IObservable<IImmutableList<DeviceScreen>> WatchDevicesList()
 		{
-			return _project.RootDirectory.Switch(projDir => 
-				_fileSystem.Watch(CustomDevicesFile(projDir))
+			return _fileSystem.Watch(CustomDevicesFile(_projectDirectory))
 					.StartWith(Unit.Default)
 					.CatchAndRetry(delay: TimeSpan.FromSeconds(1))
 					.Throttle(TimeSpan.FromSeconds(1.0 / 30.0))
-					.Select(_ => LoadDevicesForProject(projDir)));
+					.Select(_ => LoadDevicesForProject(_projectDirectory));
 		}
 
 		public IImmutableList<DeviceScreen> LoadDevicesForProject(AbsoluteDirectoryPath projDir)
@@ -49,22 +49,21 @@ namespace Outracks.Fuse.Stage
 
 		public Command CustomizeDevices()
 		{
-			return _project.RootDirectory.Switch(projDir =>
-				Command.Enabled(() =>
+			return Command.Enabled(() =>
 				{
-					if (!HasCustomDevicesFile(projDir))
-						CreateCustomDevices(projDir);
+					if (!HasCustomDevicesFile(_projectDirectory))
+						CreateCustomDevices(_projectDirectory);
 
-					var devicesFile = CustomDevicesFile(projDir);
+					var devicesFile = CustomDevicesFile(_projectDirectory);
 					try
 					{
 						_fileSystem.OpenWithDefaultApplication(devicesFile);
 					}
 					catch (Exception e)
 					{
-						_logMessages.OnNext("Failed to open " + devicesFile + ": " + e.Message + "\n");
+						_output.Write("Failed to open " + devicesFile + ": " + e.Message + "\n");
 					}
-				}));
+				});
 		}
 
 		Optional<ImmutableList<DeviceScreen>> TryLoadCustomDevices(AbsoluteDirectoryPath projDir)
@@ -79,15 +78,15 @@ namespace Outracks.Fuse.Stage
 			}
 			catch (MalformedDeviceInfo)
 			{
-				_logMessages.OnNext("Malformed " + devicesFile + "\n");
+				_output.Write("Malformed " + devicesFile + "\n");
 			}
 			catch (FileNotFoundException)
 			{
-				_logMessages.OnNext("Could not find " + devicesFile + "\n");
+				_output.Write("Could not find " + devicesFile + "\n");
 			}
 			catch (Exception e)
 			{
-				_logMessages.OnNext("Failed to load " + devicesFile + " : " + e.Message + "\n");
+				_output.Write("Failed to load " + devicesFile + " : " + e.Message + "\n");
 			}
 
 			return Optional.None();

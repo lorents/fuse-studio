@@ -5,13 +5,13 @@ namespace Outracks.Fuse.Inspector.Editors
 {
 	using Fusion;
 
-	class EditorControl<T> : IEditorControl
+	class EditorControl : IEditorControl
 	{
 		readonly IEditorFactory _editors;
-		readonly IAttribute<T> _attribute;
+		readonly IAttribute _attribute;
 		readonly IControl _control;
 
-		public EditorControl(IEditorFactory editors, IAttribute<T> attribute, IControl control)
+		public EditorControl(IEditorFactory editors, IAttribute attribute, IControl control)
 		{
 			_editors = editors;
 			_attribute = attribute;

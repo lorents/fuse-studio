@@ -57,10 +57,10 @@ namespace Fuse.Preview
 			};
 		}
 		
-		public void InvokeOn(object self)
+		public object InvokeOn(object self)
 		{
 			var method = self.GetType().GetMethod(Method);
-			method.Invoke(self, Arguments);
+			return method.Invoke(self, Arguments);
 		}
 
 	}

@@ -5,6 +5,8 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text.RegularExpressions;
 using Castle.Core.Internal;
+using Outracks.Fuse.Live;
+using Outracks.Fuse.Model;
 using Outracks.Fusion;
 using Outracks.IO;
 
@@ -23,12 +25,11 @@ namespace Outracks.Fuse.Refactoring
 
 
 		public ExtractClassViewModel(
-			IContext context,
+			ProjectModel project,
 			string suggestedName,
 			IObservable<HashSet<string>> allClassNames,
 			IClassExtractor classExtractor,
-			IFileSystem fileSystem, 
-			IProject project)
+			IFileSystem fileSystem)
 		{
 			_className = Property.Create(suggestedName);
 			_createInNewFile = Property.Create(false);
@@ -59,8 +60,7 @@ namespace Outracks.Fuse.Refactoring
 					allClassNames,
 					_createInNewFile,
 					_newFileName,
-					project.RootDirectory,
-					(name, allClasses, toNewFile, fileName, projectPath) =>
+					(name, allClasses, toNewFile, fileName) =>
 					{
 						// Don't care about whitespace at beginning or end
 						name = name.Trim();
@@ -86,23 +86,24 @@ namespace Outracks.Fuse.Refactoring
 							if (!fileName.EndsWith(".ux"))
 								return new ValidatedAction("Filename must end in .ux");
 
-							if (fileSystem.Exists(projectPath.Combine(relativePath.Value)))
+							if (fileSystem.Exists(project.RootDirectory / relativePath.Value))
 								return new ValidatedAction("The file already exists");
 
 							if (fileName.IsNullOrEmpty())
 								return new ValidatedAction("Filename can not be empty");
 						}
 
-						return new ValidatedAction(
-							() =>
-							{
-								// A Task is returned by this method, however, we don't do anything with it
-								// and just let it finish in the background
-								classExtractor.ExtractClass(
-									element: context.CurrentSelection,
-									name: name,
-									fileName: toNewFile ? Optional.Some(RelativeFilePath.Parse(fileName)) : Optional.None());
-							});
+						var maybeSelection = project.Scope.Value.CurrentSelection.Value;
+						if (maybeSelection.IsUnknown)
+							return new ValidatedAction("Nothing selected");
+
+						// A Task is returned by this method, however, we don't do anything with it
+						// and just let it finish in the background
+						return new ValidatedAction(() => 
+							classExtractor.ExtractClass(
+								element: maybeSelection,
+								name: name,
+								fileName: toNewFile ? Optional.Some(RelativeFilePath.Parse(fileName)) : Optional.None()));
 					})
 				.Replay(1).RefCount();
 

@@ -171,7 +171,7 @@ namespace Outracks.Fusion.Windows
 				dummyWindow.ShowDialog<object>(self =>
 				{
 					observableDoc.Window = self;
-					var window = Fusion.Application.CreateDocumentWindow(observableDoc);
+					var window = Fusion.Application.CreateDocumentWindow(observableDoc.FilePath.NotNone().FirstAsync().Wait());
 					var document = new Document(projectPath, self);
 					window.Closed = window.Closed.Then(Command.Enabled(() =>
 						_projects.Remove(document)));

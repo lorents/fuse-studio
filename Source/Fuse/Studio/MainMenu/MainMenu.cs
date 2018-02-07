@@ -1,39 +1,51 @@
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using Fuse.Preview;
+using Outracks.Diagnostics;
+using Outracks.Fuse.Designer;
+using Outracks.Fuse.Model;
 using Outracks.Fuse.Setup;
+using Outracks.Fuse.Stage;
+using Outracks.Fusion;
 using Outracks.IO;
 
-namespace Outracks.Fuse.Designer
+namespace Outracks.Fuse
 {
-	using Diagnostics;
-	using Fusion;
-	using Stage;
-
 	static class MainMenu 
 	{
 		public static Menu Create(
 			IFuse fuse,
 			IShell shell,
 			StageController stage,
-			Help help,
 			Menu elementMenu,
-			Menu projectMenu,
-			Build preview,
-			Export export,
+			SketchWatcher sketchConverter,
+			PreviewController previewController,
+			ProjectModel project,
+			IScheduler scheduler,
 			SetupGuide setupGuide,
 			Menu windowMenu,
-			Debug debug)
+			IOutput output)
 		{
+			var debug = new Debug();
 			var about = new About(fuse.Version, debug);
+			var help = new Help();
+			var preview = new Build(
+				previewController,
+				new PreviewOnDevice(fuse, project, output),
+				project.BuildArgs,
+				scheduler);
 
-			var toolsMenu 
-				= setupGuide.Menu 
+			var export = new Export(project, fuse, output);
+
+			var toolsMenu
+				= setupGuide.Menu
 				+ Menu.Separator;
 
-			var menus 
+			var menus
 				= Menu.Submenu("File", CreateFileMenu(fuse))
 				+ Menu.Submenu("Edit", Application.EditMenu)
 				+ Menu.Submenu("Element", elementMenu)
-				+ Menu.Submenu("Project", projectMenu)
+				+ Menu.Submenu("Project", ProjectMenu.Create(project, sketchConverter, shell))
 				+ Menu.Submenu("Viewport", stage.Menu)
 				+ Menu.Submenu("Preview", preview.Menu)
 				+ Menu.Submenu("Export", export.Menu)
@@ -46,7 +58,7 @@ namespace Outracks.Fuse.Designer
 
 			if (fuse.Platform == OS.Mac)
 				return fuseMenu + menus;
-			
+
 			return menus;
 		}
 

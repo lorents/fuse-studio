@@ -1,6 +1,8 @@
 using System;
 using System.Reactive.Linq;
 using Outracks.Fuse.Designer;
+using Outracks.Fuse.Live;
+using Outracks.Fuse.Model;
 
 namespace Outracks.Fuse.Stage
 {
@@ -9,12 +11,12 @@ namespace Outracks.Fuse.Stage
 	class StageView 
 	{
 		readonly IStage _stage;
-		readonly IContext _context;
+		readonly ProjectModel _context;
 		readonly IObservable<Mode> _mode;
 
 		public StageView(
 			IStage stageController,
-			IContext context,
+			ProjectModel context,
 			IObservable<Mode> mode)
 		{
 			_stage = stageController;
@@ -80,7 +82,7 @@ namespace Outracks.Fuse.Stage
 			get
 			{
 				var deselectArea = Button.Create(
-					clicked: Command.Enabled(() => _context.Select(Element.Empty)),
+					clicked: Command.Enabled(() => _context.Scope.Value.CurrentSelection.OnNext(new UnknownElement())),
 					content: _ => Shapes.Rectangle(fill: Theme.WorkspaceBackground));
 
 				return _stage.Viewports

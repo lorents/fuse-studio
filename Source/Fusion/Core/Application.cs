@@ -23,7 +23,7 @@ namespace Outracks.Fusion
 			remove { _implementation.Terminating -= value; }
 		}
 
-		public static Func<IDocument, Window> CreateDocumentWindow
+		public static Func<AbsoluteFilePath, Window> CreateDocumentWindow
 		{
 			get; set;
 		}

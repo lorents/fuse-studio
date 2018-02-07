@@ -61,7 +61,7 @@ namespace Outracks.Fuse
 					actualArgs.Add(projectPath.NativePath);
 				}
 				actualArgs.AddRange(args);
-				Designer.Program.Main(actualArgs.ToArray());
+				Program.Main(actualArgs.ToArray());
 			}
 			else if (Platform.OperatingSystem == OS.Mac)
 			{

@@ -38,7 +38,7 @@ namespace Outracks.Fusion.Windows
 		{
 			var binding = Tuple.Create(hotkey, item, command);
 			_bindings.OnNext(_bindings.Value.Add(binding));
-			return Disposable.Create(() => _bindings.OnNext(_bindings.Value.Remove(binding)));
+			return Disposable.Empty; //TODO:Disposable.Create(() => _bindings.OnNext(_bindings.Value.Remove(binding)));
 		}
 
 		IDisposable Bind(IImmutableList<Tuple<HotKey, System.Windows.Controls.MenuItem, ICommand>> bindings)

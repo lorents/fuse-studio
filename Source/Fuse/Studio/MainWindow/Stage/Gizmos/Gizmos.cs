@@ -1,7 +1,6 @@
 using System;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using Fuse.Preview;
 
 namespace Outracks.Fuse.Stage
 {
@@ -14,29 +13,24 @@ namespace Outracks.Fuse.Stage
 		public static IDisposable Initialize(
 			IUnoHostControl unoHost,
 			IObservable<bool> selectionEnabled,
-			IProject project)
+			ContextController context)
 		{
-			var context = project.Context;
-
 			var input = Observable.Merge<IBinaryMessage>(
 				selectionEnabled.Select(select => new ChangeTool { Tool = select ? Tool.Select : Tool.None, }),
-				context.CurrentSelection.SimulatorId.Select(id => new ChangeSelection { IsPreview = false, Id = id }),
-				context.PreviewedSelection.SimulatorId.Select(id => new ChangeSelection { IsPreview = true, Id = id }));
+				context.CurrentSelection.Select(e => new ChangeSelection(isPreview: false, id: e.Id )),
+				context.PreviewedSelection.Select(e => new ChangeSelection(isPreview: true, id: e.Id )));
 
 			var output = unoHost.LoadPlugin<Gizmos>(input);
 
 			return output
 				.TryParse(ChangeSelection.MessageType, ChangeSelection.ReadDataFrom)
-				.Select(msg =>
-					Observable.FromAsync(async () => 
-					{
-						if (msg.IsPreview)
-							await context.Preview(project.GetElement(msg.Id));
-						else
-							await context.Select(project.GetElement(msg.Id));
-					}))
-				.Concat()
-				.Subscribe();
+				.Subscribe(msg =>
+				{
+					if (msg.IsPreview)
+						context.Preview(msg.Id);
+					else
+						context.Select(msg.Id);
+				});
 		}
 
 		/// <summary>

@@ -16,16 +16,20 @@ namespace Outracks.Simulator.Protocol
 
 		public SourceReference Source { get; private set; }
 
+		public bool IsSync { get; private set; }
+
 		public UpdateAttribute(
 			ObjectIdentifier obj, 
 			string property, 
 			Optional<string> value,
-			SourceReference source)
+			SourceReference source,
+			bool isSync)
 		{
 			Object = obj;
 			Property = property;
 			Value = value;
 			Source = source;
+			IsSync = isSync;
 		}
 
 		public override string ToString()
@@ -40,6 +44,7 @@ namespace Outracks.Simulator.Protocol
 			writer.Write(Property);
 			Optional.Write(writer, Value, writer.Write);
 			SourceReference.Write(writer, Source);
+			writer.Write(IsSync);
 		}
 
 		public static UpdateAttribute ReadDataFrom(BinaryReader reader)
@@ -49,8 +54,9 @@ namespace Outracks.Simulator.Protocol
 			var property = reader.ReadString();
 			var value = Optional.Read(reader, (Func<string>)reader.ReadString);
 			var source = SourceReference.Read(reader);
+			var isSync = reader.ReadBoolean();
 
-			return new UpdateAttribute(obj, property, value, source)
+			return new UpdateAttribute(obj, property, value, source, isSync)
 			{
 				Id = id,
 			};

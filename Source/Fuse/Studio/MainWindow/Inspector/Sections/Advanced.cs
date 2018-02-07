@@ -17,8 +17,9 @@ namespace Outracks.Fuse.Inspector.Sections
 				Pane("Size / Position", editors, e => SizePositionSection.Create(element, e)),
 				Pane("Style", editors, e => StyleSection.Create(element, e)),
 				Pane("Transform", editors, e => TransformSection.Create(element, e)),
-				Pane("Visibility", editors, e => VisibilitySection.Create(element, e)),
-				Pane("Attributes", editors, e => AttributesSection.Create(element, e), collapse: element.SimulatorId));
+				Pane("Visibility", editors, e => VisibilitySection.Create(element, e))//,
+				//Pane("Attributes", editors, e => AttributesSection.Create(element, e), collapse: element.SimulatorId)
+				);
 		}
 
 		static IControl Pane(string name, IEditorFactory editorFactory, Func<IEditorFactory, IControl> content, IObservable<object> collapse)

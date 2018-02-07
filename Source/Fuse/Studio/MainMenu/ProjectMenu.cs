@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 using Outracks.Fuse.Designer;
+using Outracks.Fuse.Model;
 
 namespace Outracks.Fuse
 {
@@ -12,6 +13,16 @@ namespace Outracks.Fuse
 
 	public static class ProjectMenu
 	{
+
+		public static Menu Create(ProjectModel project, SketchWatcher sketchConverter, IShell shell)
+		{
+			return CommandItems(Observable.Return(Optional.Some(project.Path)), shell)
+				+ Menu.Separator
+				+ FileItems(project, shell)
+				+ Menu.Separator
+				+ Menu.Item("Sketch import", sketchConverter.ShowDialog());
+		}
+
 		public static Menu CommandItems(IObservable<Optional<AbsoluteFilePath>> project, IShell shell)
 		{
 			return Menu.Item("Open project folder", OpenFolder.CreateCommand(shell, project))
@@ -19,16 +30,13 @@ namespace Outracks.Fuse
 				+ OpenTextEditor.CreateMenu(project);
 		}
 
-		public static Menu FileItems(IProject project, IShell shell)
+		public static Menu FileItems(ProjectModel project, IShell shell)
 		{
 			return project
 				.Documents
-				.SelectPerElement(doc => doc.FilePath)
-				.ToObservableEnumerable()
-				.CombineLatest(
-					project.FilePath,
-					(uxFiles, projFile) =>
-						CreateOpenMenuItems(projFile.ContainingDirectory, uxFiles.ConcatOne(projFile), shell))
+				.Select(doc => doc.File.Path)
+				.ToObservableImmutableList()
+				.Select(uxFiles => CreateOpenMenuItems(project.RootDirectory, uxFiles.ConcatOne(project.Path), shell))
 				.Concat();
 		}
 

@@ -4,14 +4,11 @@ using System.Net;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Fuse.Preview;
-using ICSharpCode.NRefactory.Utils;
-using Outracks.UnoHost;
 
 namespace Outracks.Fuse.Stage
 {
 	using IO;
 	using Fusion;
-	using Simulator.Protocol;
 	using Simulator.Bytecode;
 
 	class ViewportController : IViewport
@@ -28,9 +25,7 @@ namespace Outracks.Fuse.Stage
 			Action<ViewportController> onFocus,
 			Action<ViewportController> onClose,
 			Func<ViewportController, Menu> menu,
-			ProjectPreview preview,
-			IObservable<AssemblyBuilt> assembly,
-			int port,
+			PreviewController preview,
 			IFuse fuse,
 			Action<IUnoHostControl> initialize,
 			IObserver<OpenGlVersion> glVersion)
@@ -38,15 +33,17 @@ namespace Outracks.Fuse.Stage
 			VirtualDevice = new BehaviorSubject<VirtualDevice>(initialDevice);
 			_onClose = onClose;
 			_onFocus = onFocus;
-			
-			var simulatorControl = assembly
+
+			var simulatorControl = preview
+				.AvailableBuild
+				.NotNone()
 				.Select(assemblyPath => 
 					Observable.Start(() => 
 						Observable.Using(() => 
-							preview.LockBuild(assemblyPath.BuildDirectory), 
+							preview.LockBuild(assemblyPath), 
 							assemblyLock => 
 								Observable.Using(() => 
-									SpawnUnoHost(assemblyPath, port, fuse, menu(this), initialize, glVersion),
+									SpawnUnoHost(assemblyPath, preview.Port, fuse, menu(this), initialize, glVersion),
 									unoHost => 
 										Observable
 											// never end stream, we don't want to dispose until we've gotten a new one
@@ -77,10 +74,10 @@ namespace Outracks.Fuse.Stage
 				Label.Create("Building project...", font: Theme.DefaultFont, color: Theme.DefaultText).Center());
 		}
 
-		IUnoHostControl SpawnUnoHost(AssemblyBuilt assemblyPath, int port, IFuse fuse, Menu menu, Action<IUnoHostControl> initialize, IObserver<OpenGlVersion> glVersion)
+		IUnoHostControl SpawnUnoHost(AbsoluteFilePath assemblyPath, int port, IFuse fuse, Menu menu, Action<IUnoHostControl> initialize, IObserver<OpenGlVersion> glVersion)
 		{
 			var unoHost = UnoHostControl.Create(
-				assemblyPath.Assembly,
+				assemblyPath,
 				Command.Enabled(Focus),
 				menu,
 				fuse.UserDataDir / new FileName("designer-config.json"),

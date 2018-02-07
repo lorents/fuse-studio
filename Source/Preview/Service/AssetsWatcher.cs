@@ -8,9 +8,11 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text;
 using Outracks;
+using Outracks.Fusion;
 using Outracks.IO;
 using Outracks.Simulator.Bytecode;
 using Uno.Build.JavaScript;
+using Uno.Logging;
 
 namespace Fuse.Preview
 {
@@ -18,28 +20,28 @@ namespace Fuse.Preview
 	{
 		readonly IFileSystem _fileSystem;
 		readonly IScheduler _scheduler;
+		readonly IOutput _output;
+		readonly ReifyerLogAdapter _logAdapter;
 		readonly FileSender<ProjectDependency> _dependencyFileSender;
 		readonly FileSender<AbsoluteFilePath> _bundleFileSender;
-		readonly ReifyerLogAdapter _logAdapter = new ReifyerLogAdapter();
 		readonly Lazy<FuseJS> _fuseJs;
-		readonly Subject<string> _logMessages = new Subject<string>();
 
-		public IObservable<string> LogMessages
-		{
-			get
-			{
-				return _logAdapter.Events.Select(x => x.ToString())
-					.Merge(_logMessages.Select(s => s + '\n'));
-			}
-		}
-
-		public AssetsWatcher(IFileSystem fileSystem, IObservable<AbsoluteDirectoryPath> projectRootDirectory, IScheduler scheduler)
+		public AssetsWatcher(IFileSystem fileSystem, AbsoluteDirectoryPath projectRootDirectory, IScheduler scheduler, IOutput output)
 		{
 			_fileSystem = fileSystem;
 			_scheduler = scheduler;
+			_output = output;
+			var progress = new StringBuilderProgress();
+			var errorList = new StringProgressErrorListAdapter(progress);
+			var textWriter = new StringProgressTextWriterAdapter(progress);
+			var log = new Log(errorList, textWriter);
+
+			_logAdapter = new ReifyerLogAdapter(output, progress);
+
 			_dependencyFileSender = FileSourceSender.Create(fileSystem);
-			_bundleFileSender = BundleFileSender.Create(fileSystem, projectRootDirectory);
-			_fuseJs = new Lazy<FuseJS>(() => new FuseJS(_logAdapter.Log));
+			_bundleFileSender = BundleFileSender.Create(fileSystem, Observable.Return(projectRootDirectory));
+			
+			_fuseJs = new Lazy<FuseJS>(() => new FuseJS(log));
 		}
 
 		public IObservable<CoalesceEntry> UpdateChangedDependencies(IObservable<IImmutableSet<ProjectDependency>> dependencies)
@@ -55,10 +57,10 @@ namespace Fuse.Preview
 				});
 		}
 
-		public IObservable<CoalesceEntry> UpdateChangedBundleFiles(IObservable<IImmutableSet<AbsoluteFilePath>> bundleFiles)
+		public IObservable<CoalesceEntry> UpdateChangedBundleFiles(IObservableList<AbsoluteFilePath> bundleFiles)
 		{
 			return WatchSet(
-				bundleFiles,
+				bundleFiles.ToObservableImmutableList(),
 				onItemAdded: bundleFile =>
 				{
 					return Watch(bundleFile)
@@ -67,10 +69,10 @@ namespace Fuse.Preview
 				});
 		}
 
-		public IObservable<CoalesceEntry> UpdateChangedFuseJsFiles(IObservable<IImmutableSet<AbsoluteFilePath>> fuseJsFiles)
+		public IObservable<CoalesceEntry> UpdateChangedFuseJsFiles(IObservableList<AbsoluteFilePath> fuseJsFiles)
 		{
 			return WatchSet(
-				fuseJsFiles,
+				fuseJsFiles.ToObservableImmutableList(),
 				onItemAdded: bundleFile =>
 				{
 					return Watch(bundleFile)
@@ -140,7 +142,7 @@ namespace Fuse.Preview
 				.CatchAndRetry(TimeSpan.FromSeconds(20),
 					e =>
 					{
-						_logMessages.OnNext("Failed to load '" + path.NativePath + "': " + (e.InnerException != null ? e.InnerException.Message : e.Message));
+						_output.Write("Failed to load '" + path.NativePath + "': " + (e.InnerException != null ? e.InnerException.Message : e.Message));
 					});
 		}
 

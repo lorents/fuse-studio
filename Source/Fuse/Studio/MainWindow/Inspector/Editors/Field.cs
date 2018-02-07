@@ -7,16 +7,16 @@ namespace Outracks.Fuse.Inspector.Editors
 	
 	static class FieldEditor
 	{
-		public static IControl Create<T>(
+		public static IControl Create(
 			IEditorFactory editors,
-			IAttribute<T> property,
+			IAttribute property,
 			Optional<Command> onFocused = default(Optional<Command>),
 			Text placeholderText = default(Text),
 			Text toolTip = default(Text),
 			bool deferEdit = false)
 		{
 			var stringValue = property.StringValue;
-			var hasValue = property.HasLocalValue();
+			var hasValue = property.HasValue;
 
 			if (deferEdit)
 			{

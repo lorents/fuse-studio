@@ -11,10 +11,12 @@ namespace Outracks.Fuse.Dashboard
 
 	class Dashboard
 	{
+		readonly RecentProjects _recentProjects;
 		readonly ISubject<bool> _isVisible = new BehaviorSubject<bool>(false);
 
-		public Dashboard(CreateProject createProject, IFuse fuse)
+		public Dashboard(CreateProject createProject, RecentProjects recentProjects)
 		{
+			_recentProjects = recentProjects;
 			Application.Desktop.CreateSingletonWindow(
 				isVisible: _isVisible,
 				window: window => new Window
@@ -22,13 +24,12 @@ namespace Outracks.Fuse.Dashboard
 					Style = WindowStyle.Fat,
 					Title = Observable.Return("Fuse"),
 					Size = Optional.Some(Property.Constant(Optional.Some(new Size<Points>(970, 608)))),
-					Content = Control.Lazy(() => CreateContent(createProject, window,fuse.Version)),
+					Content = Control.Lazy(() => CreateContent(createProject, window, SystemInfoFactory.GetBuildVersion())),
 					Foreground = Theme.DefaultText,
 					Background = Theme.PanelBackground,
 					Border = Separator.MediumStroke,
 					HideTitle = true,
 				});
-			
 		}
 
 		public void Show()
@@ -38,7 +39,7 @@ namespace Outracks.Fuse.Dashboard
 
 		IControl CreateContent(CreateProject createProject, IDialog<object> dialog,  Version fuseVersion)
 		{
-			var projectList = new ProjectList(new Shell(), createProject, dialog);
+			var projectList = new ProjectList(new Shell(), createProject, dialog, _recentProjects);
 			var openProjectFromDialog =
 				Command.Enabled(() => Application.ShowOpenDocumentDialog(DocumentTypes.Project));
 

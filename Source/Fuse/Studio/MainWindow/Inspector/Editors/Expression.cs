@@ -8,7 +8,7 @@ namespace Outracks.Fuse.Inspector.Editors
 
 	static class ExpressionEditor
 	{
-		public static IControl CreateButton<T>(IObservable<object> elementChanged, IAttribute<T> property, IPopover popover)
+		public static IControl CreateButton(IObservable<object> elementChanged, IAttribute property, IPopover popover)
 		{
 			return popover.CreatePopover(
 					RectangleEdge.Bottom,

@@ -14,7 +14,7 @@ namespace Outracks.Fuse.Inspector.Sections
 
 	class DockEditor
 	{
-		public static IEditorControl Create(IAttribute<Dock> attribute, IEditorFactory editors)
+		public static IEditorControl Create(IAttribute attribute, IEditorFactory editors)
 		{
 			var padding = Optional.Some(new Points(18.0));
 
@@ -26,7 +26,7 @@ namespace Outracks.Fuse.Inspector.Sections
 			var straightArrowHalfLength = straightArrowLength / 2.0;
 			var straightArrowTickOffset = 2.0;
 
-			return new EditorControl<Dock>(
+			return new EditorControl(
 				editors,
 				attribute,
 

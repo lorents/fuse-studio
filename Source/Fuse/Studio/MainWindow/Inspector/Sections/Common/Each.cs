@@ -6,8 +6,8 @@
 	{
 		public static IControl Create(IElement element, IEditorFactory editors)
 		{
-			var items = element.GetString("Items", "");
-			var count = element.GetDouble("Count", 0);
+			var items = element["Items"];
+			var count = element["Count"];
 
 			return Layout.StackFromTop(
 					Spacer.Medium,

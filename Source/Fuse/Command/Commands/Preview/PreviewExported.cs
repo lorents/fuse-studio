@@ -7,8 +7,6 @@ using System.Reactive;
 using System.Reactive.Subjects;
 using System.Threading;
 using Fuse.Preview;
-using Outracks.Building;
-using Outracks.Fuse.Live;
 using Outracks.Fuse.Protocol;
 using Outracks.Fuse.Protocol.Preview;
 using Outracks.IO;
@@ -45,7 +43,7 @@ namespace Outracks.Fuse
 
 			var projectId = ProjectIdComputer.IdFor(args.Project);
 
-			using (PushEventsToDaemon.Start(buildEvents, client, args.Project, projectId, GetBuildTarget(args.Target)))
+			using (EditorIntegration.PushEventsToDaemon(buildEvents, client, args.Project, projectId, GetBuildTarget(args.Target)))
 			using (buildEvents.Subscribe(_output.WriteBuildEvent))
 			{
 

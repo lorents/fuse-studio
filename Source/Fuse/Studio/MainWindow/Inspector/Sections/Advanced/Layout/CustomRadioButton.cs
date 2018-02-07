@@ -12,20 +12,20 @@ namespace Outracks.Fuse.Inspector.Sections
 		public static readonly Size<Points> SmallRectSize = new Size<Points>(10.0, 4.0);
 
 		public static IControl Create<T>(
-			IAttribute<T> attribute,
+			IAttribute attribute,
 			T value,
 			Text toolTip,
 			Func<Brush, Brush, Stroke, IControl> content)
 			where T: struct
 		{
-			var isSelected = attribute.LocalValue()
-				.Select(maybeValue => maybeValue.Equals(value))
+			var isSelected = attribute.StringValue
+				.Select(stringValue => stringValue == value.ToString())
 				.DistinctUntilChanged()
 				.Replay(1).RefCount();
 
 
 			return Button.Create(
-						clicked: Command.Enabled(() => attribute.Write(value, save: true)),
+						clicked: Command.Enabled(() => attribute.StringValue.Write(value.ToString(), save: true)),
 						content: state =>
 						{
 							var color = isSelected.Select(s => s ? Theme.Active : Theme.DisabledText).Switch();

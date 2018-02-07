@@ -91,12 +91,19 @@ namespace Outracks.Simulator
 		public static Task<Socket> Execute(IEnumerable<IPEndPoint> simulatorEndpoints)
 		{
 			var isNotConnected = new AutoResetEvent(true);
-			var socketTasks = new List<Task<Socket>>();
-			foreach (var endpoint in simulatorEndpoints)
-				socketTasks.Add(Tasks.Run<Socket>(new ConnectToEndpointClosure(endpoint, isNotConnected).Execute));
+			//var socketTasks = new List<Task<Socket>>();
+			var task = new Task<Socket>(Wait);
+			task.Result = new ConnectToEndpointClosure(simulatorEndpoints.ToArray()[0], isNotConnected).Execute();
 
-			return Tasks.WaitForFirstResult<Socket>(socketTasks, OnNoResult);
+			debug_log "Connected!";
+			return task;
+			//foreach (var endpoint in simulatorEndpoints)
+			//{
+			//	socketTasks.Add(Tasks.Run<Socket>(new ConnectToEndpointClosure(endpoint, isNotConnected).Execute));
+			//}
+			//return Tasks.WaitForFirstResult<Socket>(socketTasks, OnNoResult);
 		}
+		static void Wait() { } 
 
 		static Socket OnNoResult(IEnumerable<Exception> exceptions)
 		{
@@ -188,12 +195,17 @@ namespace Outracks.Simulator
 
 		void ReadLoop()
 		{
+			debug_log "ReadLoop started...";
 			try
 			{
 				while (_running)
 				{
 					while (_socket.Poll(0, SelectMode.Read))
-						_messagesToClient.Enqueue(BinaryMessage.ReadFrom(_reader));
+					{
+						var message = BinaryMessage.ReadFrom(_reader);
+						debug_log "Receieved " + message.Type;
+						_messagesToClient.Enqueue(message);
+					}
 
 					Thread.Sleep(10);
 				}

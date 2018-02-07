@@ -87,8 +87,9 @@ namespace Fuse.Preview
 			{
 				bool codeIsIncorrect = true;
 				while (codeIsIncorrect)
+				lock (this)
 				{
-
+					
 					var codeOrPath = streamReader.ReadString();
 					var code = "";
 					var path = "";

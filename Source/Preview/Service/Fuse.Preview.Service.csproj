@@ -192,12 +192,15 @@
     <Compile Include="BuildLogged.cs" />
     <Compile Include="BuildProject.cs" />
     <Compile Include="Ended.cs" />
+    <Compile Include="FileWatchingDocument.cs" />
     <Compile Include="GenerateBytecode.cs" />
     <Compile Include="InternalBuildError.cs" />
-    <Compile Include="MarkupParser.cs" />
+    <Compile Include="IOutput.cs" />
+    <Compile Include="IPreview.cs" />
+    <Compile Include="IPreviewProcess.cs" />
+    <Compile Include="IStatus.cs" />
     <Compile Include="Platform\EnsureSingleInstance.cs" />
     <Compile Include="Platform\BinaryEncoding.cs" />
-    <Compile Include="Builder.cs" />
     <Compile Include="BuildOutputDirGenerator.cs" />
     <Compile Include="CacheCleaner.cs" />
     <Compile Include="CoalesceCache.cs" />
@@ -209,7 +212,6 @@
     <Compile Include="Platform\IProcess.cs" />
     <Compile Include="Platform\Factory.cs" />
     <Compile Include="Platform\IPlatform.cs" />
-    <Compile Include="IProjectAndServer.cs" />
     <Compile Include="LogSubject.cs" />
     <Compile Include="OutputDirGenerator.cs" />
     <Compile Include="Platform\Mac.cs" />
@@ -219,9 +221,9 @@
     <Compile Include="PreviewTarget.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="ProjectBuild.cs" />
-    <Compile Include="ProjectMarkup.cs" />
     <Compile Include="ProjectProcess.cs" />
     <Compile Include="ProjectPreview.cs" />
+    <Compile Include="ProjectWatcher.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Platform\MethodCall.cs" />
     <Compile Include="Platform\ProcessLog.cs" />
@@ -234,7 +236,6 @@
     <Compile Include="ReifyEventsDaemon.cs" />
     <Compile Include="RunFailed.cs" />
     <Compile Include="SimulatorBuild.cs" />
-    <Compile Include="SimulatorHost.cs" />
     <Compile Include="$(SolutionDir)SharedAssemblyInfo.cs">
       <Link>Properties/SharedAssemblyInfo.cs</Link>
     </Compile>
@@ -246,7 +247,6 @@
     <Compile Include="UnoBuild.cs" />
     <Compile Include="UnoBuildWrapper.cs" />
     <Compile Include="UpdateAttribute.cs" />
-    <Compile Include="Updater.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\AndroidManager\Outracks.AndroidManager.csproj">

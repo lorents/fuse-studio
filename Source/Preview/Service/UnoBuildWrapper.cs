@@ -125,7 +125,6 @@ namespace Fuse.Preview
 							{
 								Command = args,
 								Success = !faulty,
-								BuildDirectory = AbsoluteDirectoryPath.Parse(project.Project.OutputDirectory)
 							});
 					}
 				})

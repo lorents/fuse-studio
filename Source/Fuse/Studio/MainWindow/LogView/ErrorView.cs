@@ -6,6 +6,7 @@ using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Fuse.Preview;
+using Outracks.Fuse.Model;
 using Outracks.Fuse.Protocol;
 using Outracks.Fusion;
 using Outracks.IO;
@@ -46,23 +47,47 @@ namespace Outracks.Fuse.Designer
 		}
 	}
 
+	public class ErrorSourceInfo
+	{
+		public int Column { get; set; }
+		public int Line { get; set; }
+		public AbsoluteFilePath File { get; set; }
+
+		public override bool Equals(object obj)
+		{
+			var info = obj as ErrorSourceInfo;
+			return info != null &&
+				   Column == info.Column &&
+				   Line == info.Line &&
+				   EqualityComparer<AbsoluteFilePath>.Default.Equals(File, info.File);
+		}
+
+		public override int GetHashCode()
+		{
+			var hashCode = 1944568825;
+			hashCode = hashCode * -1521134295 + Column.GetHashCode();
+			hashCode = hashCode * -1521134295 + Line.GetHashCode();
+			hashCode = hashCode * -1521134295 + EqualityComparer<AbsoluteFilePath>.Default.GetHashCode(File);
+			return hashCode;
+		}
+	}
 	public class ErrorView : IDisposable
 	{
-		readonly IObservable<AbsoluteFilePath> _projectFile;
-		readonly IMessagingService _daemon;
+		readonly AbsoluteFilePath _projectFile;
 		readonly BehaviorSubject<ImmutableList<Diagnostic>> _diagnostics = new BehaviorSubject<ImmutableList<Diagnostic>>(ImmutableList<Diagnostic>.Empty);
 		readonly IDisposable _disposables;
 		readonly IObservableList<BuildIssueDetected> _errorMessages;
 		public readonly IObservable<bool> NotifyUser;
+		readonly Action<AbsoluteFilePath, ErrorSourceInfo> _focusEditor;
 
 		public ErrorView(
+			ProjectModel project,
 			IObservable<IBinaryMessage> simulatorMessages, 
-			IObservable<AbsoluteFilePath> projectFile, 
-			IMessagingService daemon, 
-			IObservable<string> serverClientRemoved)
+			IObservable<string> serverClientRemoved, 
+			Action<AbsoluteFilePath, ErrorSourceInfo> focusEditor)
 		{
-			_projectFile = projectFile;
-			_daemon = daemon;
+			_projectFile = project.Path;
+			_focusEditor = focusEditor;
 			var diagnosticsStream = simulatorMessages.TryParse(Diagnostic.MessageType, Diagnostic.ReadDataFrom);
 			var dismissDiagnosticsStream = simulatorMessages.TryParse(DismissDiagnostic.MessageType, DismissDiagnostic.ReadDataFrom);
 
@@ -95,9 +120,7 @@ namespace Outracks.Fuse.Designer
 
 			var diagnosticErrorItems =
 				_diagnostics.ObserveOn(Application.MainThread)
-					.CombineLatest(
-						_projectFile,
-						(items, projFile) => items.Distinct(new DiagnosticHeuristicComparer()).Select(item => MapDiagnostic(item, projFile.ContainingDirectory)).ToImmutableList())
+					.Select(items => items.Distinct(new DiagnosticHeuristicComparer()).Select(item => MapDiagnostic(item, _projectFile.ContainingDirectory)).ToImmutableList())
 				.ToObservableList();
 
 			var combinedErrorItems =
@@ -115,22 +138,7 @@ namespace Outracks.Fuse.Designer
 
 		IControl CreateItemRow(ErrorItem e)
 		{
-			var locateInEditor = Command.Create(_projectFile.Select(
-				projFile => e.Source.Select(
-					source =>
-					{
-						return (Action) (() =>
-						{
-							var request = new FocusEditorRequest()
-							{
-								Column = source.Column,
-								Line = source.Line,
-								File = source.File.NativePath,
-								Project = projFile.NativePath
-							};
-							FocusEditorCommand.SendRequest(_daemon, request);
-						});
-					})));
+			var locateInEditor = Command.Create(e.Source.HasValue, () => _focusEditor(_projectFile, e.Source.Value));
 
 			var tags =
 				Layout.StackFromLeft(e.Tags.Select(
@@ -140,7 +148,7 @@ namespace Outracks.Fuse.Designer
 							.WithBackground(
 								Shapes.Rectangle(fill: tag.Brush, cornerRadius: Observable.Return(new CornerRadius(10))))).WithPadding(right: new Points(4.0))));
 
-			var lineInfoControl = _projectFile.Select(projFile =>  e.Source.Select(
+			var lineInfoControl = e.Source.Select(
 				source =>
 				{
 					return Layout.StackFromLeft(
@@ -148,7 +156,7 @@ namespace Outracks.Fuse.Designer
 						Layout.StackFromLeft(
 							Label.Create("File: ", color: Theme.DescriptorText).CenterVertically(),
 							Label.Create(
-									source.File.RelativeTo(projFile.ContainingDirectory).NativeRelativePath,
+									source.File.RelativeTo(_projectFile.ContainingDirectory).NativeRelativePath,
 									color: Theme.DefaultText,
 									lineBreakMode: LineBreakMode.TruncateHead)
 								.CenterVertically().WithWidth(200)),
@@ -162,7 +170,7 @@ namespace Outracks.Fuse.Designer
 								content: states =>
 									Label.Create("Locate", color: Theme.Link)).WithPadding(new Thickness<Points>(10, 0)).CenterVertically()),
 						Control.Empty.WithWidth(8));
-				}).Or(() => Control.Empty));
+				}).Or(() => Control.Empty);
 
 			return Layout.StackFromLeft(Layout.StackFromTop(
 				Control.Empty.WithHeight(8),
@@ -172,7 +180,7 @@ namespace Outracks.Fuse.Designer
 					//lineBreakMode: LineBreakMode.Wrap,
 					font: Font.SystemDefault(Observable.Return(19.0))).CenterVertically(),
 				Control.Empty.WithHeight(16),
-				Layout.StackFromLeft(tags, lineInfoControl.Switch()),
+				Layout.StackFromLeft(tags, lineInfoControl),
 				Control.Empty.WithHeight(8),
 				Layout.StackFromLeft(
 					Label.Create(e.Message, lineBreakMode: LineBreakMode.Wrap, color: Theme.DescriptorText)
@@ -254,30 +262,6 @@ namespace Outracks.Fuse.Designer
 		}
 
 
-		class ErrorSourceInfo
-		{
-			public int Column { get; set; }
-			public int Line { get; set; }
-			public AbsoluteFilePath File { get; set; }
-
-			public override bool Equals(object obj)
-			{
-				var info = obj as ErrorSourceInfo;
-				return info != null &&
-					   Column == info.Column &&
-					   Line == info.Line &&
-					   EqualityComparer<AbsoluteFilePath>.Default.Equals(File, info.File);
-			}
-
-			public override int GetHashCode()
-			{
-				var hashCode = 1944568825;
-				hashCode = hashCode * -1521134295 + Column.GetHashCode();
-				hashCode = hashCode * -1521134295 + Line.GetHashCode();
-				hashCode = hashCode * -1521134295 + EqualityComparer<AbsoluteFilePath>.Default.GetHashCode(File);
-				return hashCode;
-			}
-		}
 
 		class ErrorTag
 		{

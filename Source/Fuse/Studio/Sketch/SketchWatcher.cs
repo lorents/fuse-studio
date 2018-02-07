@@ -7,6 +7,7 @@ using System.Reactive.Subjects;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Newtonsoft.Json;
+using Outracks.Fuse.Model;
 using Outracks.Fusion;
 using Outracks.IO;
 using SketchConverter.API;
@@ -60,7 +61,8 @@ namespace Outracks.Fuse.Designer
 		}
 		
 	}
-	class SketchWatcher
+
+	public class SketchWatcher
 	{
 		public IObservable<string> LogMessages { get { return _logMessages; } }
 
@@ -77,19 +79,18 @@ namespace Outracks.Fuse.Designer
 
 		}
 
-		public IDisposable Watch(IProject project)
+		public IDisposable Watch(ProjectModel project)
 		{
 			var queue = new SingleActionQueue();
-			var subscription = project.FilePath
-				.Select(SketchImportUtils.SketchListFilePath)
+			var subscription = Observable
+				.Return(SketchImportUtils.SketchListFilePath(project.Path))
 				.WhenChangedOrStarted(_fileSystem)
 				.Where(path => File.Exists(path.NativePath))
 				.Select(SketchFilePaths)
-				.CombineLatest(project.RootDirectory, SketchImportUtils.MakeAbsolute)
+				.Select(paths => SketchImportUtils.MakeAbsolute(paths, project.RootDirectory))
 				.WhenAnyChangedOrStarted(_fileSystem)
-				.CombineLatest(project.RootDirectory) // todo redundant as we already combined with the root directory to make paths absolute
 				.Subscribe(
-					x => queue.Enqueue(() => Convert(x.Item1, x.Item2 / SketchImportUtils.OutputDirName)),
+					x => queue.Enqueue(() => Convert(x, project.RootDirectory / SketchImportUtils.OutputDirName)),
 					e => { _logger.Error("Sketch importer error: " + e.Message); });
 
 			var tokenSource = new CancellationTokenSource();
@@ -159,33 +160,43 @@ namespace Outracks.Fuse.Designer
 		const int Height = 250;
 
 		readonly ISubject<bool> _isVisible = new BehaviorSubject<bool>(false);
+		public void CreateDialog(ProjectModel projectController)
+		{
+			Application.Desktop.CreateSingletonWindow(
+				_isVisible,
+				dialog => new Window
+				{
+					Title = Observable.Return("Sketch import"),
+					Size = Optional.Some(Property.Constant(Optional.Some(new Size<Points>(Width, Height)))),
+					Content = View(projectController, dialog), // todo why does the content use the title space??
+					Background = Theme.PanelBackground,
+					Foreground = Theme.DefaultText,
+					Border = Separator.MediumStroke,
+					Style = WindowStyle.Fat,
+				});
+		}
 
-		public IControl View(IProject project, IDialog<object> dialog)
+		public IControl View(ProjectModel project, IDialog<object> dialog)
 		{
 			var newFile = Property.Create("");
 			var files = new ListBehaviorSubject<IFilePath>();
 
-			project.FilePath.Select(SketchImportUtils.SketchListFilePath)
-				.Where(path => File.Exists(path.NativePath))
-				.Select(SketchFilePaths).Do(paths =>
-				{
-					foreach (var absoluteFilePath in paths)
-					{
-						files.OnAdd(absoluteFilePath);
-					}
-				})
-				.Subscribe();
+			var listPath = SketchImportUtils.SketchListFilePath(project.Path);
+			var paths = File.Exists(listPath.NativePath) 
+				? SketchFilePaths(listPath) 
+				: Enumerable.Empty<IFilePath>();
 
+			foreach (var absoluteFilePath in paths)
+				files.OnAdd(absoluteFilePath);
+			
 			var addNewSketchFileCommand =
-				Command.Create(newFile
-					.CombineLatest(project.RootDirectory,
-						(pathString, rootDir) =>
+				Command.Create(newFile.Select((pathString) =>
 						{
 							if (!string.IsNullOrWhiteSpace(pathString))
 							{
 								var path = FilePath.Parse(pathString);
 
-								if (_fileSystem.Exists((path as IAbsolutePath) ?? rootDir.Combine((RelativeFilePath)path)))
+								if (_fileSystem.Exists((path as IAbsolutePath) ?? project.RootDirectory / ((RelativeFilePath)path)))
 									return Optional.Some(path);
 							}
 							return Optional.None();
@@ -219,7 +230,7 @@ namespace Outracks.Fuse.Designer
 						.Fill(
 							FilePathControl.Create(
 									newFile,
-									project.RootDirectory,
+									Observable.Return(project.RootDirectory),
 									new[] { new FileFilter("Sketch files", SketchImportUtils.SketchExtention) },
 									"Add sketch file",
 									"Enter path of new sketch file to add here, or click browse button",
@@ -227,17 +238,14 @@ namespace Outracks.Fuse.Designer
 				.Fill(
 					files
 						.ToObservableImmutableList()
-						.SelectPerElement(
-							filePath =>
+						.SelectPerElement(filePath =>
 							{
 								var highlightSketchFileControl = new BehaviorSubject<bool>(false);
-								var fileExists = project.RootDirectory.Select(
-									root => File.Exists(FilePath.ParseAndMakeAbsolute(filePath, root).NativePath));
+								var fileExists = File.Exists(FilePath.ParseAndMakeAbsolute(filePath, project.RootDirectory).NativePath);
 
 								return highlightSketchFileControl
 									.DistinctUntilChanged()
-									.CombineLatest(fileExists, 
-										(highlight, exists)  =>
+									.Select(highlight =>
 										{
 											return Layout.Dock()
 													.Bottom(Spacer.Smaller)
@@ -248,9 +256,9 @@ namespace Outracks.Fuse.Designer
 													.Fill(
 														Label.Create(
 																Observable.Return(filePath.ToString()).AsText(),
-																color: exists ? Theme.DefaultText : Theme.ErrorColor,
+																color: fileExists ? Theme.DefaultText : Theme.ErrorColor,
 																font: Theme.DefaultFont)
-															.CenterVertically()).SetToolTip(exists ? default(Text) : "Can't find file " + filePath)
+															.CenterVertically()).SetToolTip(fileExists ? default(Text) : "Can't find file " + filePath)
 													.OnMouse(
 														entered: Command.Enabled(() => { highlightSketchFileControl.OnNext(true); }),
 														exited: Command.Enabled(() => highlightSketchFileControl.OnNext(false)))
@@ -266,27 +274,16 @@ namespace Outracks.Fuse.Designer
 				ConfirmCancelControl.Create(
 					close: Command.Enabled(() => { _isVisible.OnNext(false); }),
 					confirm: Command.Enabled(
-						() => { project.FilePath.Select(SketchImportUtils.SketchListFilePath).Do(path => { WriteSketchFilePaths(path, files.Value); }).Subscribe(); }),
+						() =>
+						{
+							var path = SketchImportUtils.SketchListFilePath(project.Path);
+							WriteSketchFilePaths(path, files.Value);
+						}),
 					fill: content.WithMediumPadding(), cancel: null, confirmText: null, cancelText: null, confirmTooltip: null)
 					.WithMacWindowStyleCompensation() // order of window style compensation and with background is important
 					.WithBackground(Theme.PanelBackground);
 		}
 
-		public void CreateDialog(IProject project)
-		{
-			Application.Desktop.CreateSingletonWindow(
-				_isVisible,
-				dialog => new Window
-				{
-					Title = Observable.Return("Sketch import"),
-					Size = Optional.Some(Property.Constant(Optional.Some(new Size<Points>(Width, Height)))),
-					Content = View(project, dialog), // todo why does the content use the title space??
-					Background = Theme.PanelBackground,
-					Foreground = Theme.DefaultText,
-					Border = Separator.MediumStroke,
-					Style = WindowStyle.Fat,
-				});
-		}
 
 		public static IControl RemoveButton(Command command)
 		{

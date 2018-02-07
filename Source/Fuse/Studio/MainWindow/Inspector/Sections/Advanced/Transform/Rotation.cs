@@ -16,7 +16,7 @@ namespace Outracks.Fuse.Inspector.Sections
 		static IControl CreateRotationRow(IElement rotation, IEditorFactory editors)
 		{
 			var name = rotation.UxName();
-			var degrees = rotation.GetDouble("Degrees", 0.0);
+			var degrees = rotation["Degrees"];
 
 			return Layout.StackFromTop(
 				editors.NameRow("Rotation Name", name),

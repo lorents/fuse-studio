@@ -14,14 +14,17 @@ namespace Outracks.Fuse.Inspector.Sections
 		static IControl CreateAttributeEditorsForType(IElement instance, IElement type, IEditorFactory editors)
 		{
 			var attributes = type.Children
-				.SelectPerElement(c => c.UxProperty().SelectPerElement(p => new { Name = p, Type = c.Name, }))
-				.ToObservableEnumerable()
-				.Select(v => v.NotNone());
+				.Select(c => c.UxProperty().StringValue.Select(name => 
+					string.IsNullOrEmpty(name) 
+						? Optional.None()
+						: Optional.Some(new { Name = name, Type = c.Name, })))
+				.Switch()
+				.NotNone()
+				;
 				
-			return type.UxClass()
-				.Select(maybeClass => 
-					maybeClass.MatchWith(
-						none: () => Layout.StackFromTop(
+			return type.UxClass().StringValue.Select(className => 
+					string.IsNullOrEmpty(className) 
+						? Layout.StackFromTop(
 							Spacer.Medim,
 							
 							Label.Create("Unknown element type", 
@@ -30,9 +33,9 @@ namespace Outracks.Fuse.Inspector.Sections
 									textAlignment: TextAlignment.Center)
 								.WithInspectorPadding(),
 		
-							Spacer.Medium),
+							Spacer.Medium)
 						
-						some: className => Layout.StackFromTop(
+						: Layout.StackFromTop(
 							Separator.Weak,
 							Spacer.Medim,
 
@@ -43,10 +46,11 @@ namespace Outracks.Fuse.Inspector.Sections
 									
 							Spacer.Medium,
 
-							attributes.SelectPerElement(attribute => 
+							attributes.Select(attribute => 
 								Layout.Dock()
-									.Right(editors.Field(instance.GetString(attribute.Name, ""), placeholderText: attribute.Type.AsText()))
+									.Right(editors.Field(instance[attribute.Name], placeholderText: attribute.Type.AsText()))
 									.Fill(editors.Label(attribute.Name, instance[attribute.Name])))
+								.ToObservableImmutableList()
 								.StackFromTop(separator: () => Spacer.Small)
 								.WithInspectorPadding(),
 
@@ -55,7 +59,7 @@ namespace Outracks.Fuse.Inspector.Sections
 									color: Theme.DisabledText,
 									textAlignment: TextAlignment.Center)
 								.WithInspectorPadding()
-								.ShowWhen(attributes.Select(a => a.IsEmpty())),
+								.ShowWhen(attributes.IsEmpty()),
 
 							Spacer.Medium,
 
@@ -67,7 +71,7 @@ namespace Outracks.Fuse.Inspector.Sections
 										: Layout.StackFromTop(
 											Separator.Weak,
 											CreateAttributeEditorsForType(instance, type.Base, editors)))
-								.Switch())))
+								.Switch()))
 				.Switch();
 		}
 	}

@@ -1,4 +1,6 @@
-﻿namespace Outracks.Fuse.Inspector.Sections
+﻿using Outracks.Fuse.Editing;
+
+namespace Outracks.Fuse.Inspector.Sections
 {
 	using Fusion;
 	
@@ -6,11 +8,11 @@
 	{
 		public static IControl Create(IElement element, IEditorFactory editors)
 		{
-			element = element.As("Fuse.Elements.Element");
+			//TODO element = element.As("Fuse.Elements.Element");
 
-			var color = element.GetColor("Color", Color.White);
-			var background = element.GetColor("Background", new Color(1, 1, 1, 1));
-			var opacity = element.GetDouble("Opacity", 1.0);
+			var color = element["Color"];
+			var background = element["Background"];
+			var opacity = element["Opacity"];
 	
 			return Layout.StackFromTop(
 				Separator.Weak,

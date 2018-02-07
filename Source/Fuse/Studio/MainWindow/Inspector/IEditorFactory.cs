@@ -11,27 +11,23 @@ namespace Outracks.Fuse.Inspector
 
 		IControl Label(Text name, IProperty<Optional<string>> attributeData);
 
-		IControl Label<T>(Text name, params IAttribute<T>[] properties);
+		IControl Label(Text name, params IAttribute[] properties);
 
-		IControl Label(Text name, IAttribute<Points> attribute);
+		IEditorControl Field(IAttribute attribute, Text placeholderText = default(Text), Text toolTip = default(Text), bool deferEdit = false);
 
-		IControl Label(Text name, IAttribute<UxSize> attribute);
+		IEditorControl Color(IAttribute color);
 
-		IEditorControl Field<T>(IAttribute<T> attribute, Text placeholderText = default(Text), Text toolTip = default(Text), bool deferEdit = false);
+		IEditorControl Switch(IAttribute attribute);
 
-		IEditorControl Color(IAttribute<Color> color);
+		IEditorControl Dropdown<T>(IAttribute attribute, T defaultValue) where T : struct;
 
-		IEditorControl Switch(IAttribute<bool> attribute);
+		IEditorControl Slider(IAttribute attribute, double min, double max);
 
-		IEditorControl Dropdown<T>(IAttribute<T> attribute) where T : struct;
+		IEditorControl FilePath(IAttribute attribute, IObservable<AbsoluteDirectoryPath> projectRoot, FileFilter[] fileFilters, Text placeholderText = default(Text), Text toolTip = default(Text));
 
-		IEditorControl Slider(IAttribute<double> attribute, double min, double max);
+		IRadioButton<T> RadioButton<T>(IAttribute attribute, T defaultValue);
 
-		IEditorControl FilePath(IAttribute<string> attribute, IObservable<AbsoluteDirectoryPath> projectRoot, FileFilter[] fileFilters, Text placeholderText = default(Text), Text toolTip = default(Text));
-
-		IRadioButton<T> RadioButton<T>(IAttribute<T> attribute);
-
-		IControl ExpressionButton<T>(IAttribute<T> attribute);
+		IControl ExpressionButton(IAttribute attribute);
 	}
 
 	public interface IRadioButton<in T> 

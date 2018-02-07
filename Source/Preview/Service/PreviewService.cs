@@ -1,4 +1,5 @@
 using System;
+using System.Reactive.Subjects;
 using Outracks;
 using Outracks.IO;
 
@@ -28,9 +29,9 @@ namespace Fuse.Preview
 			_proxy.UpdateReversedPorts(shouldUpdate);
 		}
 
-		public ProjectPreview StartPreview(IProjectLike project)
+		public IPreview StartPreview(AbsoluteFilePath project, IOutput output)
 		{
-			return new ProjectPreview(project, _shell, _buildOutputDirGenerator, _proxy);
+			return new ProjectPreview(project, _shell, _buildOutputDirGenerator, _proxy, output);
 		}
 
 		public void Dispose()

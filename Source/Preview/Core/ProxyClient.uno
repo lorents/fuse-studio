@@ -28,15 +28,20 @@ namespace Outracks.Simulator
 	{
 		public static Task<IPEndPoint[]> GetSimulatorEndpoint(IEnumerable<IPEndPoint> proxyEndpoints, string project, IEnumerable<string> defines)
 		{
-			var tasks = new List<Task<IPEndPoint[]>>();
+			var task = new Task<IPEndPoint[]>(Wait);
+			task.Result = new GetSimulatorEndpoint(proxyEndpoints.ToArray()[0], project, defines.ToArray()).Execute();
+			return task;
 
-			foreach (var endpoint in proxyEndpoints)
-				tasks.Add(
-					Tasks.Run<IPEndPoint[]>(
-						new GetSimulatorEndpoint(endpoint, project, defines.ToArray()).Execute));
+			//var tasks = new List<Task<IPEndPoint[]>>();
+			//foreach (var endpoint in proxyEndpoints)
+			//	tasks.Add(
+			//		Tasks.Run<IPEndPoint[]>(
+			//			new GetSimulatorEndpoint(endpoint, project, defines.ToArray()).Execute));
 
-			return Tasks.WaitForFirstResult<IPEndPoint[]>(tasks, OnNoResult);
+			//return Tasks.WaitForFirstResult<IPEndPoint[]>(tasks, OnNoResult);
 		}
+
+		static void Wait() { }
 
 		static IPEndPoint[] OnNoResult(IEnumerable<Exception> exceptions)
 		{

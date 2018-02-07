@@ -1,4 +1,6 @@
-﻿using System.Threading.Tasks;
+﻿using System.Reactive.Linq;
+using System.Threading.Tasks;
+using Outracks.Fuse.Model;
 using Outracks.Simulator;
 
 namespace Outracks.Fuse.Inspector.Sections
@@ -7,35 +9,35 @@ namespace Outracks.Fuse.Inspector.Sections
 	
 	class ImageSection
 	{
-		public static IControl Create(IProject project, IElement element, IEditorFactory editors)
+		public static IControl Create(ProjectModel project, IElement element, IEditorFactory editors)
 		{
-			var file = element.GetString("File", "");
-			var stretchMode = element.GetEnum("StretchMode", StretchMode.Uniform);
+			var file = element["File"];
+			var stretchMode = element["StretchMode"];
 
-			var stretchDirection = element.GetEnum("StretchDirection", StretchDirection.Both);
-			var stretchSizing = element.GetEnum("StretchSizing", StretchSizing.Zero);
+			var stretchDirection = element["StretchDirection"];
+			var stretchSizing = element["StretchSizing"];
 
 			return Layout.StackFromTop(
 					Spacer.Medium,
 					
 					editors.FilePath(
 							attribute: file,
-							projectRoot: project.RootDirectory,
+							projectRoot: Observable.Return(project.RootDirectory),
 							fileFilters: new[] { new FileFilter("Image Files", ".png", ".jpg", ".jpeg")  },
 							placeholderText: "Path to image file")
 						.WithInspectorPadding(),
 					
 					Spacer.Medium,
 
-					editors.Dropdown(stretchMode)
+					editors.Dropdown(stretchMode, StretchMode.Uniform)
 						.WithLabel("Stretch Mode")
 						.WithInspectorPadding(),
 
 					Spacer.Medium,
 					
 					Layout.Dock()
-						.Left(editors.Dropdown(stretchDirection).WithLabelAbove("Stretch Direction"))
-						.Right(editors.Dropdown(stretchSizing).WithLabelAbove("Stretch Sizing"))
+						.Left(editors.Dropdown(stretchDirection, StretchDirection.Both).WithLabelAbove("Stretch Direction"))
+						.Right(editors.Dropdown(stretchSizing, StretchSizing.Zero).WithLabelAbove("Stretch Sizing"))
 						.Fill().WithInspectorPadding(),
 
 					Spacer.Medium)

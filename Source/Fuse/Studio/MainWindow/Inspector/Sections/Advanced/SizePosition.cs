@@ -1,4 +1,6 @@
-﻿namespace Outracks.Fuse.Inspector.Sections
+﻿using Outracks.Fuse.Editing;
+
+namespace Outracks.Fuse.Inspector.Sections
 {
 	using Fusion;
 	
@@ -8,17 +10,17 @@
 		{
 			element = element.As("Fuse.Elements.Element");
 
-			var x = element.GetSize("X", UxSize.Points(0.0));
-			var y = element.GetSize("Y", UxSize.Points(0.0));
+			var x = element["X"];
+			var y = element["Y"];
 
 			//var offset = element.GetSize2("Offset", Size.Create(UxSize.Points(0.0), UxSize.Points(0.0))).Transpose(UxSize.Points(0.0));
 
-			var width = element.GetPoints("Width", 0.0);
-			var height = element.GetPoints("Height", 0.0);
-			var maxWidth = element.GetPoints("MaxWidth", 0.0);
-			var maxHeight = element.GetPoints("MaxHeight", 0.0);
-			var minWidth = element.GetPoints("MinWidth", 0.0);
-			var minHeight = element.GetPoints("MinHeight", 0.0);
+			var width = element["Width"];
+			var height = element["Height"];
+			var maxWidth = element["MaxWidth"];
+			var maxHeight = element["MaxHeight"];
+			var minWidth = element["MinWidth"];
+			var minHeight = element["MinHeight"];
 
 			return Layout.StackFromTop(
 				

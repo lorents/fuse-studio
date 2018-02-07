@@ -27,11 +27,9 @@ namespace Outracks.Fuse.Stage
 			return Observable.Merge(
 				ctrl.Moved
 					.WithLatestFromBuffered(selection, (pos, currentSelection) =>
-						new ChangeSelection
-						{
-							IsPreview = true,
-							Id = HitTest(pos, currentSelection, ctx),
-						}),
+						new ChangeSelection(
+							isPreview: true,
+							id: HitTest(pos, currentSelection, ctx))),
 
 				ctrl.Pressed
 					.WithLatestFromBuffered(selection, (pos, currentSelection) =>
@@ -43,15 +41,15 @@ namespace Outracks.Fuse.Stage
 					.SelectMany(t => new[] 
 					{
 						new ChangeSelection
-						{
-							IsPreview = true,
-							Id = t.newPreviewSelection,
-						},
+						(
+							isPreview: true,
+							id: t.newPreviewSelection
+						),
 						new ChangeSelection
-						{
-							IsPreview = false,
-							Id = t.newSelection,
-						},
+						(
+							isPreview: false,
+							id: t.newSelection
+						),
 					}));
 		}
 

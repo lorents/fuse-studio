@@ -179,13 +179,13 @@
     <Compile Include="LiveElementFactory.cs" />
     <Compile Include="Components\ComponentInstallerTests.cs" />
     <Compile Include="Main\BuildArgsTests.cs" />
-    <Compile Include="Main\GlVersionParsingTests.cs" />
     <Compile Include="Main\SelectionTests.cs" />
     <Compile Include="Markup\ElementTest.cs" />
     <Compile Include="Markup\SourceFragmentTest.cs" />
     <Compile Include="MessageDatabase.cs" />
     <Compile Include="MessageDatabaseItem.cs" />
     <Compile Include="MessageIntegrityTests.cs" />
+    <Compile Include="PreviewControllerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="$(SolutionDir)SharedAssemblyInfo.cs">
       <Link>Properties/SharedAssemblyInfo.cs</Link>

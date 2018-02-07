@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using Outracks.Fuse.Designer;
+using Outracks.Fuse.Model;
 using Outracks.Fusion;
 using Outracks.IO;
 
-namespace Outracks.Fuse.Designer
+namespace Outracks.Fuse
 {
 	class ProjectDataPathComparer : IEqualityComparer<ProjectData>
 	{
@@ -28,42 +31,45 @@ namespace Outracks.Fuse.Designer
 		}
 	}
 
-	static class RecentProjects
+	class RecentProjects
 	{
-		static readonly IProperty<Optional<IEnumerable<ProjectData>>> UserSetting =
-			UserSettings.List<ProjectData>("RecentProjects");
-
-		public static IObservable<ImmutableList<ProjectData>> All
+		readonly IProperty<Optional<IEnumerable<ProjectData>>> _userSetting;
+		
+		public RecentProjects(ISettings settings)
 		{
-			get
-			{
-				return UserSetting.OrEmpty()
-					.Select(ProjectData.ExistingProjects)
-					.Replay(1).RefCount();
-			}
+			_userSetting = settings.List<ProjectData>("RecentProjects");
+
+			All = _userSetting.OrEmpty()
+				.Select(ProjectData.ExistingProjects)
+				.Replay(1).RefCount();
 		}
 
-		public static async Task Bump(Fusion.IDocument document, IObservable<string> projectName)
+		public IObservable<ImmutableList<ProjectData>> All
 		{
-			var filePath = await document.FilePath.NotNone().FirstAsync();
-			var list = await All.FirstAsync();
-			var name = await projectName.FirstAsync();
+			get; private set;
+		}
+		
+		public void Bump(ProjectModel project)
+		{
+			var filePath = project.Path;
+			var list = All.FirstAsync().Wait();
+			var name = project.Name.FirstAsync().Wait();
 
-			var newList = 
+			var newList =
 				list.Insert(0, new ProjectData(name, filePath, DateTime.Now))
 					.Distinct(new ProjectDataPathComparer());
 
-			UserSetting.Write(Optional.Some(newList), save: true);
+			_userSetting.Write(Optional.Some(newList), save: true);
 		}
 
-		public static async Task Remove(IAbsolutePath path)
+		public void Remove(IAbsolutePath path)
 		{
-			var list = await All.FirstAsync();
-			var newList = 
+			var list = All.FirstAsync().Wait();
+			var newList =
 				list.RemoveAll(item => item.ProjectPath.Equals(path))
 					.Distinct(new ProjectDataPathComparer());
 
-			UserSetting.Write(Optional.Some(newList), save: true);
+			_userSetting.Write(Optional.Some(newList), save: true);
 		}
 
 	}

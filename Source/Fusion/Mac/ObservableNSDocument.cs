@@ -133,7 +133,7 @@ namespace Outracks.Fusion.OSX
 			MacDialog<Unit>.ShowDocumentWindow(this, window =>
 			{
 				Window = window;
-				var content = Fusion.Application.CreateDocumentWindow(this);
+				var content = Fusion.Application.CreateDocumentWindow(FilePath.NotNone().FirstAsync().Wait());
 				Console.WriteLine("Got window");
 				DocumentOpened.OnNext(content);
 				Console.WriteLine("Will show!");

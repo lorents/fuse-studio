@@ -1,6 +1,6 @@
 ﻿namespace Outracks.Simulator.CodeGeneration
 {
-	class MissingAppTag : BuildFailed
+	public class MissingAppTag : BuildFailed
 	{
 		public override string Message
 		{

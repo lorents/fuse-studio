@@ -25,12 +25,12 @@ namespace Outracks.Fuse.Inspector.Sections
 
 	class AlignmentEditor
 	{
-		public static IEditorControl Create(IAttribute<Alignment> attribute, IEditorFactory editors)
+		public static IEditorControl Create(IAttribute attribute, IEditorFactory editors)
 		{
 			var smallPadding = Optional.Some(new Points(5.0));
 			var largePadding = Optional.Some(new Points(16.0));
 
-			return new EditorControl<Alignment>(
+			return new EditorControl(
 				editors,
 				attribute,
 

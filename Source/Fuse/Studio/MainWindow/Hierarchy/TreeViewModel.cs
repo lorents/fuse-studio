@@ -7,6 +7,8 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Runtime.CompilerServices;
+using Outracks.Fuse.Live;
+using Outracks.Fuse.Model;
 using Outracks.Fusion;
 
 namespace Outracks.Fuse.Hierarchy
@@ -16,18 +18,13 @@ namespace Outracks.Fuse.Hierarchy
 		readonly IObservable<IEnumerable<ITreeRowViewModel>> _visibleRows;
 		readonly IObservable<int> _totalRowCount;
 
-		readonly IContext _context;
+		readonly ContextController _context;
 		readonly IObservable<bool> _highlightSelectedElement;
 
 		readonly BehaviorSubject<int> _visibleRowCount = new BehaviorSubject<int>(1);
 		readonly BehaviorSubject<int> _visibleRowOffset = new BehaviorSubject<int>(0);
 		readonly Subject<int> _scrollTarget = new Subject<int>();
-		readonly Func<IElement, Menu> _elementMenuFactory;
-
-		// Using a ConditionalWeakTable for expand state. It's a bit dirty, but right now tracking aliveness of elements
-		// is not trivial. That will hopefully be fixed at a later point, however this solution works and we have a test.
-		class ElementExpandState { public bool IsExpanded { get; set; } }
-		readonly ConditionalWeakTable<ILiveElement, ElementExpandState> _expandMap = new ConditionalWeakTable<ILiveElement, ElementExpandState>();
+		readonly Func<ElementModel, Menu> _elementMenuFactory;
 
 		readonly BehaviorSubject<Unit> _expandToggled =
 			new BehaviorSubject<Unit>(Unit.Default);
@@ -39,61 +36,42 @@ namespace Outracks.Fuse.Hierarchy
 		readonly Command _navigateDownCommand;
 
 		public TreeViewModel(
-			IContext context,
+			ContextController context,
 			IObservable<bool> highlightSelectedElement,
-			Func<IElement, Menu> elementMenuFactory)
+			Func<ElementModel, Menu> elementMenuFactory)
 		{
 			_elementMenuFactory = elementMenuFactory;
 			_context = context;
 			_highlightSelectedElement = highlightSelectedElement.Replay(1).RefCount();
 
-			var scopeElement = context.CurrentScope.LiveElement.Select(
-				x => x.Select(
-						el => el.Changed.StartWith(Unit.Default).Select(_ => Optional.Some(el)))
-					.Or(Observable.Return(Optional.None<ILiveElement>())));
-
 			var moveToSelectedElement = false;
 
-			var inputs = scopeElement
-				.Switch()
+			var inputs = Observable
 				.CombineLatest(
+					context.CurrentScope.Select(s => s.Changed.StartWith(new object()).Select(_ => s)).Switch(),
+					context.CurrentSelection.Do(el => moveToSelectedElement = !el.IsUnknown),
+					context.PreviewedSelection,
 					_visibleRowCount.DistinctUntilChanged(),
 					_visibleRowOffset.DistinctUntilChanged(),
 					_expandToggled,
-					context.CurrentSelection.LiveElement.Do(el => moveToSelectedElement = el.HasValue),
-					(element, visibleRowCount, visibleRowOffset, expanded, selectedElement) =>
-						new { element, visibleRowCount, visibleRowOffset, expanded, selectedElement })
-				.CombineLatest(
-					Observable.Return<Optional<ILiveElement>>(Optional.None()),
-					(x, previewElement) => new
-					{
-						x.element,
-						x.visibleRowCount,
-						x.visibleRowOffset,
-						x.expanded,
-						x.selectedElement,
-						previewElement
-					});
+					( scopeRoot, selectedElement, previewElement, visibleRowCount, visibleRowOffset, expanded ) => new 
+					{ scopeRoot, selectedElement, previewElement, visibleRowCount, visibleRowOffset, expanded });
 
-			var state =
-				inputs
-					.Scan(
-						new State(this),
-						(s, x) => s.Update(x.element, x.visibleRowCount, x.visibleRowOffset, x.selectedElement, x.previewElement))
-					.Do(
-						nextState =>
+			var state = inputs
+				.Scan(new State(this), (s, x) => s.Update(x.scopeRoot, x.visibleRowCount, x.visibleRowOffset, x.selectedElement, x.previewElement))
+				.Do(nextState =>
+				{
+					if (moveToSelectedElement)
+					{
+						moveToSelectedElement = false;
+						if (nextState.SelectedElementIsOutsideVisibleRange)
 						{
-							if (moveToSelectedElement)
-							{
-								moveToSelectedElement = false;
-								if (nextState.SelectedElementIsOutsideVisibleRange)
-								{
-									_scrollTarget.OnNext(nextState.SelectedElementRowOffset.Value);
-								}
-							}
-						})
-					.Replay(1)
-					.RefCount();
+							_scrollTarget.OnNext(nextState.SelectedElementRowOffset.Value);
+						}
+					}
+				})
+				.Replay(1)
+				.RefCount();
 
 			_visibleRows = state.Select(x => x.VisibleRows).DistinctUntilChanged();
 			_totalRowCount = state.Select(x => x.TotalRowCount).DistinctUntilChanged();
@@ -104,21 +82,26 @@ namespace Outracks.Fuse.Hierarchy
 				state.Select(x => x.ElementAfterSelected.Select(el => (Action) (() => _context.Select(el)))));
 		}
 
-		void SetElementExpanded(ILiveElement element, bool expand)
+		void SetElementExpanded(ElementModel element, bool expand)
 		{
-			var expandState = _expandMap.GetOrCreateValue(element);
-			expandState.IsExpanded = expand;
+			if (expand)
+				element.Tags.OnAdd(Expanded);
+			else
+			{
+				var index = element.Tags.Value.IndexOf(Expanded);
+				if (index != -1)
+					element.Tags.OnRemove(index);
+			}
+
 			_expandToggled.OnNext(Unit.Default);
 		}
 
-		bool GetElementExpanded(ILiveElement element, bool fallback)
+		bool GetElementExpanded(ElementModel element, bool fallback)
 		{
-			ElementExpandState expandState;
-			if (_expandMap.TryGetValue(element, out expandState))
-				return expandState.IsExpanded;
-
-			return fallback;
+			return element.Tags.Value.Contains(Expanded);
 		}
+
+		const string Expanded = "Expanded";
 
 		public int VisibleRowCount
 		{
@@ -152,8 +135,10 @@ namespace Outracks.Fuse.Hierarchy
 			get
 			{
 				return Command.Create(
-					_context.PreviousScope.IsEmpty.Select(
-						isEmpty => isEmpty ? Optional.None<Action>() : Optional.Some((Action) (() => _context.PopScope()))));
+					_context.PreviousScope.Select(scope => 
+						scope.IsUnknown 
+							? Optional.None<Action>() 
+							: Optional.Some<Action>(() => _context.PopScope())));
 			}
 		}
 
@@ -161,8 +146,12 @@ namespace Outracks.Fuse.Hierarchy
 		{
 			get
 			{
-				return _context.PreviousScope.UxClass().Or(_context.PreviousScope.Name)
-					.Select(name => "Return to \"" + name + "\"");
+				return _context.PreviousScope
+					.Select(scope => 
+						Observable.CombineLatest(
+							scope.UxClass(), scope.Name, 
+							(className, name) => "Return to \"" + name + "\""))
+					.Switch();
 			}
 		}
 
@@ -199,7 +188,7 @@ namespace Outracks.Fuse.Hierarchy
 				get { return _selectedElementRowOffset; }
 			}
 
-			public Optional<ILiveElement> ElementAfterSelected
+			public Optional<ElementModel> ElementAfterSelected
 			{
 				get
 				{
@@ -207,7 +196,7 @@ namespace Outracks.Fuse.Hierarchy
 				}
 			}
 
-			public Optional<ILiveElement> ElementBeforeSelected
+			public Optional<ElementModel> ElementBeforeSelected
 			{
 				get
 				{
@@ -217,7 +206,7 @@ namespace Outracks.Fuse.Hierarchy
 
 			readonly int _visibleRowOffset;
 			readonly int _visibleRowCount;
-			readonly IList<ILiveElement> _allExpandedElements;
+			readonly IList<ElementModel> _allExpandedElements;
 			readonly IImmutableList<RowModel> _visibleRows;
 
 			public int TotalRowCount
@@ -247,7 +236,7 @@ namespace Outracks.Fuse.Hierarchy
 				Optional.None(),
 				0,
 				0,
-				new ILiveElement[] { }) { }
+				new ElementModel[] { }) { }
 
 
 			State(
@@ -258,7 +247,7 @@ namespace Outracks.Fuse.Hierarchy
 				Optional<int> selectedElementRowOffset,
 				int visibleRowOffset,
 				int visibleRowCount,
-				IList<ILiveElement> allExpandedElements)
+				IList<ElementModel> allExpandedElements)
 			{
 				_tree = tree;
 				_visibleRows = visibleRows;
@@ -271,11 +260,11 @@ namespace Outracks.Fuse.Hierarchy
 			}
 
 			public State Update(
-				Optional<ILiveElement> root,
+				Optional<ElementModel> root,
 				int visibleRowCount,
 				int visibleRowOffset,
-				Optional<ILiveElement> selectedElement,
-				Optional<ILiveElement> previewElement)
+				Optional<ElementModel> selectedElement,
+				Optional<ElementModel> previewElement)
 			{
 				return root.Select(
 						el =>
@@ -298,15 +287,15 @@ namespace Outracks.Fuse.Hierarchy
 			}
 
 			State ScanElementTree(
-				ILiveElement root,
+				ElementModel root,
 				int visibleRowCount,
 				int visibleRowOffset,
-				Optional<ILiveElement> selectedElement,
-				Optional<ILiveElement> previewElement)
+				Optional<ElementModel> selectedElement,
+				Optional<ElementModel> previewElement)
 			{
 				// Update visible rows  ake sure we have enough
-				var updates = new Dictionary<ILiveElement, Action<RowModel>>();
-				var allExpandedElements = new List<ILiveElement>(_allExpandedElements.Count * 2);
+				var updates = new Dictionary<ElementModel, Action<RowModel>>();
+				var allExpandedElements = new List<ElementModel>(_allExpandedElements.Count * 2);
 
 				var selectedElementRowOffset = Optional.None<int>();
 				var previewElementRowOffset = Optional.None<int>();
@@ -338,7 +327,7 @@ namespace Outracks.Fuse.Hierarchy
 
 			IImmutableList<RowModel> UpdateRows(
 				IImmutableList<RowModel> visibleRows,
-				Dictionary<ILiveElement, Action<RowModel>> updates)
+				Dictionary<ElementModel, Action<RowModel>> updates)
 			{
 
 				//while (visibleRows.Count < 30)
@@ -398,14 +387,14 @@ namespace Outracks.Fuse.Hierarchy
 			/// </summary>
 			static void ScanElementTree(
 				TreeViewModel treeModel,
-				ILiveElement element,
-				Dictionary<ILiveElement, Action<RowModel>> updates,
-				List<ILiveElement> allExpandedElements,
+				ElementModel element,
+				Dictionary<ElementModel, Action<RowModel>> updates,
+				List<ElementModel> allExpandedElements,
 				int visibleRowCount,
 				int visibleRowOffset,
 				int depth,
-				ILiveElement[] selectionPath,
-				Optional<ILiveElement> previewElement,
+				ElementModel[] selectionPath,
+				Optional<ElementModel> previewElement,
 				bool isAncestorSelected,
 				ref Optional<int> selectedElementRowOffset,
 				ref Optional<int> previewElementRowOffset)
@@ -476,15 +465,15 @@ namespace Outracks.Fuse.Hierarchy
 				}
 			}
 
-			static bool CanExpand(ILiveElement element, int depth)
+			static bool CanExpand(ElementModel element, int depth)
 			{
-				return element.Children.Value.Any() && (depth == 0 || !element.UxClass().Value.HasValue);
+				return element.Children.Value.Any() && (depth == 0 || !element.Attributes.ContainsKey("ux:Class"));
 			}
 
-			static ILiveElement[] GetSelectionPath(ILiveElement root, Optional<ILiveElement> selectedElement)
+			static ElementModel[] GetSelectionPath(ElementModel root, Optional<ElementModel> selectedElement)
 			{
 				if (!selectedElement.HasValue)
-					return new ILiveElement[] { };
+					return new ElementModel[] { };
 
 				// First we count depth and see if selection is descendant of our root
 				var selected = selectedElement.Value;
@@ -492,22 +481,22 @@ namespace Outracks.Fuse.Hierarchy
 				int depth = 0;
 				while (current != root)
 				{
-					var liveParent = current.Parent as ILiveElement;
+					var liveParent = current.Parent.IsUnknown ? null : current.Parent;
 					if (liveParent == null)
 					{
-						return new ILiveElement[] { };
+						return new ElementModel[] { };
 					}
 					depth++;
 					current = liveParent;
 				}
 
 				// Then we walk down again and build the selection array
-				var selectionPath = new ILiveElement[depth + 1];
+				var selectionPath = new ElementModel[depth + 1];
 				current = selected;
 				do
 				{
 					selectionPath[depth] = current;
-					current = current.Parent as ILiveElement;
+					current = current.Parent.IsUnknown ? null : current.Parent;
 				} while (depth-- > 0);
 
 				return selectionPath;

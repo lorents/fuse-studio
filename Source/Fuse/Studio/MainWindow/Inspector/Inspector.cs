@@ -1,5 +1,9 @@
 using System;
+using System.Linq;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using Outracks.Fuse.Editing;
+using Outracks.Fuse.Live;
 
 namespace Outracks.Fuse.Inspector
 {
@@ -12,30 +16,46 @@ namespace Outracks.Fuse.Inspector
 		public static readonly string Title = "Inspector";
 		public static readonly Points Width = 295;
 
-		public static IControl Create(IProject project)
+		public static IControl Create(ContextController context, PreviewController previewController, IScheduler scheduler)
 		{
-			var element = project.Context.CurrentSelection;
+			var modelUpdater = new ModelUpdater(previewController);
+			var insertElement = new InsertElement(modelUpdater);
+			var removeElement = new RemoveElement(modelUpdater);
+			var cutCopyPaste = new CutCopyPaste(removeElement);
 
-			var nothingSelected = element.SimulatorId.Select(id => id == ObjectIdentifier.None);
+			var element = context.CurrentSelection
+				.Select(el => 
+					el.IsUnknown
+						? Element.Empty
+						: new ElementEditor(
+							el,
+							previewController.Metadata,
+							previewController,
+							cutCopyPaste,
+							insertElement, 
+							removeElement,
+							scheduler))
+				.Switch();
 
-			var elementChanged = element.SimulatorId.Select(id => (object)id);
+			var elementChanged = Observable.Return(new object()); //element.SimulatorId.Select(id => (object)id);
 
 
 			return Popover.Host(popover =>
 			{
-				var uneditableElementMessage = UneditableElementMessage(project);
+				var uneditableElementMessage = UneditableElementMessage(element);
 				var uneditableElementIsSelected = uneditableElementMessage.Select(x => x.HasValue);
 				var uneditablePlaceholder = UneditablePlaceholder(uneditableElementMessage).ShowWhen(uneditableElementIsSelected);
 
 				return Layout.StackFromTop(
-						Sections.CommonSection.Create(element, project, new Factory(elementChanged, popover), popover),
+						Sections.CommonSection.Create(element, context.Project, new Factory(elementChanged, popover), popover),
 						Sections.AdvancedSection.Create(element, new Factory(elementChanged, popover))
-							.MakeCollapsable(RectangleEdge.Top, uneditableElementIsSelected.IsFalse(), animate: false))
+							//.MakeCollapsable(RectangleEdge.Top, uneditableElementIsSelected.IsFalse(), animate: false)
+						)
 					.WithWidth(Width)
 					.DockLeft()
 					.MakeScrollable(darkTheme: Theme.IsDark, horizontalScrollBarVisible: false)
 					.WithBackground(uneditablePlaceholder.ShowWhen(uneditableElementIsSelected))
-					.WithOverlay(Placeholder().ShowWhen(nothingSelected));
+					.WithOverlay(Placeholder().ShowWhen(element.IsEmpty));
 			});
 		}
 
@@ -78,10 +98,10 @@ namespace Outracks.Fuse.Inspector
 				.Control;
 		}
 
-		static IObservable<Optional<string>> UneditableElementMessage(IProject project)
+		static IObservable<Optional<string>> UneditableElementMessage(IElement currentSelection)
 		{
-			return project.Context.CurrentSelection.Is("Fuse.Triggers.Trigger")
-				.CombineLatest(project.Context.CurrentSelection.Is("Fuse.Animations.Animator"),
+			return currentSelection.Is("Fuse.Triggers.Trigger")
+				.CombineLatest(currentSelection.Is("Fuse.Animations.Animator"),
 					(isTrigger, isAnimator) =>
 					{
 						if (isTrigger || isAnimator)
@@ -116,7 +136,7 @@ namespace Outracks.Fuse.Inspector
 
 	static class Rows
 	{
-		public static IControl NameRow(this IEditorFactory editors, string name, IAttribute<string> property, bool deferEdit = false)
+		public static IControl NameRow(this IEditorFactory editors, string name, IAttribute property, bool deferEdit = false)
 		{
 			return Layout.Dock()
 				.Left(editors.Label(name, property).WithWidth(CellLayout.FullCellWidth))

@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using Outracks.Fuse.Model;
 using Outracks.Fusion;
 using Outracks.IO;
 
@@ -22,20 +23,17 @@ namespace Outracks.Fuse.Testing
 		//private Thread _thread;
 		//private EventWaitHandle _stopSignal;
 
-		public RandomMutatorWindow(IProject project)
+		public RandomMutatorWindow(ProjectModel project)
 		{
 			var mutator = new RandomUxMutator();
-			_mainFile =
-				project.Documents
-					.SelectPerElement(x => new { x.FilePath, x.Root })
-					.WherePerElement(x => x.Root.Name.Is("App"))
-					.Select(
-						x =>
-							x.Select(y => y.FilePath.Select(z => z.ToOptional()))
-								.FirstOr(() => Observable.Return(Optional.None<AbsoluteFilePath>())))
-					.Switch()
-					.Replay(1)
-					.RefCount();
+			_mainFile = Observable.Return(Optional.None<AbsoluteFilePath>());
+			//	project.Documents
+			//		.Select(x => new { x.FilePath, x.Root })
+			//		.Where(x => x.Root.Name.Is("App"))
+			//		.Select(y => y.FilePath.Select(z => z.ToOptional()))
+			//		.FirstOr(Observable.Return(Optional.None<AbsoluteFilePath>()))
+			//		.Switch()
+			//		.Replay(1).RefCount();
 
 			Observable.Interval(TimeSpan.FromSeconds(1))
 				.CombineLatest(_mainFile.NotNone(), (_, f) => f)
@@ -109,7 +107,7 @@ namespace Outracks.Fuse.Testing
 			_state.OnNext(State.Stopped);
 		}
 
-		public static void Create(IProject project)
+		public static void Create(ProjectModel project)
 		{
 			new RandomMutatorWindow(project).CreateWindow();
 		}

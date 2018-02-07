@@ -8,7 +8,7 @@ namespace Outracks.Fuse
 		[STAThread]
 		public static int Main(string[] cmdArgs)
 		{
-			return Program.Run(cmdArgs.ToList());
+			return ConsoleProgram.Run(cmdArgs.ToList());
 		}
 	}
 

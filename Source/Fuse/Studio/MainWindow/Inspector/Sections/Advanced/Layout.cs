@@ -1,4 +1,6 @@
-﻿namespace Outracks.Fuse.Inspector.Sections
+﻿using Outracks.Fuse.Editing;
+
+namespace Outracks.Fuse.Inspector.Sections
 {
 	using Fusion;
 
@@ -8,10 +10,10 @@
 		{
 			element = element.As("Fuse.Elements.Element");
 
-			var alignment = element.GetEnum("Alignment", Alignment.Default);
-			var dock = element.GetEnum("Dock", Dock.Fill);
-			var layoutRole = element.GetEnum("LayoutRole", LayoutRole.Standard);
-			var layer = element.GetEnum("Layer", Layer.Layout);
+			var alignment = element["Alignment"];
+			var dock = element["Dock"];
+			var layoutRole = element["LayoutRole"];
+			var layer = element["Layer"];
 			
 			return Layout.StackFromTop(
 				Separator.Weak,
@@ -34,8 +36,8 @@
 				Spacer.Medium, Separator.Weak, Spacer.Medium,
 				
 				Layout.Dock()
-					.Left(editors.Dropdown(layoutRole).WithLabelAbove("Layout Role"))
-					.Right(editors.Dropdown(layer).WithLabelAbove("Layer"))
+					.Left(editors.Dropdown(layoutRole, LayoutRole.Standard).WithLabelAbove("Layout Role"))
+					.Right(editors.Dropdown(layer, Layer.Layout).WithLabelAbove("Layer"))
 					.Fill()
 					.WithInspectorPadding(),
 

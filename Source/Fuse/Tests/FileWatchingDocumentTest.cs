@@ -24,11 +24,11 @@ namespace Outracks.Fuse.Tests
 		{
 			var fs = new Shell();
 			var path = DirectoryPath.GetCurrentDirectory() / new FileName(Guid.NewGuid().ToString());
-			var doc = new FileWatchingDocument(fs, path);
+			var doc = new FileWatchingDocument(fs, path, Scheduler.Immediate, null);
 
 			var externalChanges = doc.ExternalChanges.FirstAsync().ToTask();
 
-			await doc.Save(new byte[] { 13, 37 });
+			doc.Save(new byte[] { 13, 37 });
 		
 			await doc.Contents.FirstAsync();
 			Assert.ThrowsAsync<TimeoutException>(async () =>
@@ -67,15 +67,15 @@ namespace Outracks.Fuse.Tests
 			});
 
 			// Start by opening FileWatchingDocument, reading unlocked file.
-			var doc = new FileWatchingDocument(fs, path, testScheduler);
+			var doc = new FileWatchingDocument(fs, path, testScheduler, null);
 
 			doc.Contents.Subscribe(bytes => readContent = Encoding.UTF8.GetString(bytes));
-			doc.ErrorsDuringLoading.Subscribe(err =>
-			{
-				if (err.HasValue)
-					errorsDuringLoadingCounter++;
-				errorDuringLoading = err;
-			});
+			//doc.ErrorsDuringLoading.Subscribe(err =>
+			//{
+			//	if (err.HasValue)
+			//		errorsDuringLoadingCounter++;
+			//	errorDuringLoading = err;
+			//});
 
 			fileNotifications.OnNext(Unit.Default);
 			testScheduler.AdvanceBy(FileWatchingDocument.PreLogRetryInterval);

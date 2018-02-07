@@ -17,9 +17,9 @@ namespace Outracks.Fuse.Inspector.Editors
 	public class RadioButtonCellBuilder<T> : IRadioButton<T>
 	{
 		readonly IEditorFactory _editors;
-		readonly IAttribute<T> _property;
+		readonly IAttribute _property;
 		readonly List<RadioButtonOption<T>> _options = new List<RadioButtonOption<T>>();
-		public RadioButtonCellBuilder(IAttribute<T> property, IEditorFactory editors)
+		public RadioButtonCellBuilder(IAttribute property, IEditorFactory editors)
 		{
 			_property = property;
 			_editors = editors;
@@ -44,17 +44,17 @@ namespace Outracks.Fuse.Inspector.Editors
 		{
 			get
 			{
-				return new EditorControl<T>(_editors, _property, 
+				return new EditorControl(_editors, _property, 
 					Observable.Return(
 						_options.Select((v, i) =>
 							Button.Create(
-								Command.Enabled(() => _property.Write(v.Value, save: true)),
+								Command.Enabled(() => _property.StringValue.Write(v.Value.ToString(), save: true)),
 								state =>
 								{
 									var colors = FindColors(
 										isEnabled: state.IsEnabled,
-										isDefaultValue: _property.Select(lv => lv.Equals(v.Value)),
-										isSetValue: _property.LocalValue().Select(lv => lv.Equals(v.Value)),
+										isDefaultValue: _property.StringValue.Select(lv => lv.Equals("")),
+										isSetValue: _property.StringValue.Select(lv => lv.Equals(v.Value)),
 										isHovered: state.IsHovered);
 
 									var stroke = Stroke.Create(1, colors.Stroke);

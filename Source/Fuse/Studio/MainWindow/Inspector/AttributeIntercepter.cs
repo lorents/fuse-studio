@@ -50,7 +50,11 @@ namespace Outracks.Fuse.Inspector
 			return _editorFactory.ElementList(name, parent, prototype, itemFactory);
 		}
 
-		public IControl Label<T>(Text name, params IAttribute<T>[] properties)
+		public IControl Label(Text name, IProperty<Optional<string>> attributeData)
+		{
+			return Intercept(attributeData, _editorFactory.Label(name, attributeData));
+		}
+		public IControl Label(Text name, params IAttribute[] properties)
 		{
 			var control = _editorFactory.Label(name, properties);
 			
@@ -60,69 +64,57 @@ namespace Outracks.Fuse.Inspector
 			return control;
 		}
 
-		public IControl Label(Text name, IAttribute<Points> attribute)
-		{
-			return Intercept(attribute, _editorFactory.Label(name, attribute));
-		}
 
-		public IControl Label(Text name, IAttribute<UxSize> attribute)
-		{
-			return Intercept(attribute, _editorFactory.Label(name, attribute));
-		}
 
-		public IEditorControl Field<T>(IAttribute<T> attribute, Text placeholderText = default(Text), Text toolTip = default(Text), bool deferEdit = false)
+		public IEditorControl Field(IAttribute attribute, Text placeholderText = default(Text), Text toolTip = default(Text), bool deferEdit = false)
 		{
 			return Intercept(attribute, _editorFactory.Field(attribute, placeholderText, toolTip, deferEdit));
 		}
-		
-		public IControl Label(Text name, IProperty<Optional<string>> attributeData)
-		{
-			return Intercept(attributeData, _editorFactory.Label(name, attributeData));
-		}
 
-		public IEditorControl Slider(IAttribute<double> attribute, double min, double max)
+
+		public IEditorControl Slider(IAttribute attribute, double min, double max)
 		{
 			return Intercept(attribute, _editorFactory.Slider(attribute, min, max));
 		}
 
-		public IEditorControl FilePath(IAttribute<string> attribute, IObservable<AbsoluteDirectoryPath> projectRoot, FileFilter[] fileFilters, Text placeholderText = default(Text), Text toolTip = default(Text))
+		public IEditorControl FilePath(IAttribute attribute, IObservable<AbsoluteDirectoryPath> projectRoot, FileFilter[] fileFilters, Text placeholderText = default(Text), Text toolTip = default(Text))
 		{
 			return Intercept(attribute, _editorFactory.FilePath(attribute, projectRoot, fileFilters, placeholderText, toolTip));
 		}
 
-		public IEditorControl Switch(IAttribute<bool> attribute)
+		public IEditorControl Switch(IAttribute attribute)
 		{
 			return Intercept(attribute, _editorFactory.Switch(attribute));
 		}
 
-		public IEditorControl Color(IAttribute<Color> color)
+		public IEditorControl Color(IAttribute color)
 		{
 			return Intercept(color, _editorFactory.Color(color));
 		}
 
-		public IEditorControl Dropdown<T>(IAttribute<T> attribute) where T : struct
+		public IEditorControl Dropdown<T>(IAttribute attribute, T defaultValue) where T : struct
 		{
-			return Intercept(attribute, _editorFactory.Dropdown(attribute));
+			return Intercept(attribute, _editorFactory.Dropdown(attribute, defaultValue));
 		}
 
-		public IRadioButton<T> RadioButton<T>(IAttribute<T> attribute)
+		public IRadioButton<T> RadioButton<T>(IAttribute attribute, T defaultValue)
 		{
-			var control = _editorFactory.RadioButton(attribute);
+			var control = _editorFactory.RadioButton(attribute, defaultValue);
 			Intercept(attribute, control.Control);
 			return control;
 		}
 
-		public IControl ExpressionButton<T>(IAttribute<T> attribute)
+		public IControl ExpressionButton(IAttribute attribute)
 		{
 			return Intercept(attribute, _editorFactory.ExpressionButton(attribute));
 		}
 
-		public TResult Intercept<T, TResult>(IAttribute<T> attribute, TResult control)
+		public TResult Intercept<TResult>(IAttribute attribute, TResult control)
 			where TResult : IControl
 		{
 			return Keep(control, new AttributeRecord
 			{
-				HasValue = attribute.HasLocalValue(),
+				HasValue = attribute.HasValue,
 				IsReadOnly = attribute.IsReadOnly,
 			});
 		}

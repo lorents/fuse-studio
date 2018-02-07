@@ -17,9 +17,9 @@ namespace Outracks.Fuse.Inspector.Sections
 		static IControl CreateStrokeRow(IElement stroke, IEditorFactory editors)
 		{
 			var name = stroke.UxName();
-			var color = stroke.GetColor("Color", Color.Black);
-			var alignment = stroke.GetEnum("Alignment", StrokeAlignment.Inside);
-			var width = stroke.GetPoints("Width", 1.0);
+			var color = stroke["Color"];
+			var alignment = stroke["Alignment"];
+			var width = stroke["Width"];
 
 			return Layout.StackFromTop(
 				editors.NameRow("Stroke Name", name),
@@ -33,7 +33,8 @@ namespace Outracks.Fuse.Inspector.Sections
 						editors.Field(width).WithLabelAbove("Width")
 							.WithWidth(CellLayout.HalfCellWidth))
 					.Right(Spacer.Small)
-					.Fill(editors.Dropdown(alignment).WithLabelAbove("Alignment")));
+					.Fill(editors.Dropdown(alignment, StrokeAlignment.Inside)
+						.WithLabelAbove("Alignment")));
 		}
 	}
 

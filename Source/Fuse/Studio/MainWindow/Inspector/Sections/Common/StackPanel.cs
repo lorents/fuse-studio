@@ -8,14 +8,14 @@ namespace Outracks.Fuse.Inspector.Sections
 	{
 		public static IControl Create(IElement element, IEditorFactory editors)
 		{
-			var orientation = element.GetEnum("Orientation", Orientation.Vertical);
-			var itemSpacing = element.GetDouble("ItemSpacing", 0.0);
+			var orientation = element["Orientation"];
+			var itemSpacing = element["ItemSpacing"];
 
 			return Layout.StackFromTop(
 					Spacer.Medium,
 					
 					Layout.StackFromLeft(
-							editors.RadioButton(orientation)
+							editors.RadioButton(orientation, Orientation.Vertical)
 								.Option(Orientation.Horizontal, (fg, bg) => StackIcon.Create(Axis2D.Horizontal, fg), "Orientation: Horizontal")
 								.Option(Orientation.Vertical, (fg, bg) => StackIcon.Create(Axis2D.Vertical, fg), "Orientation: Vertical")
 								.Control.WithLabel("Orientation"),

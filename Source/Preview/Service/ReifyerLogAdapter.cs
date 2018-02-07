@@ -1,8 +1,6 @@
 using System;
 using System.IO;
-using System.Reactive.Subjects;
 using System.Text;
-using Outracks.Fuse.Protocol;
 using Outracks.IO;
 using Uno;
 using Uno.Logging;
@@ -11,25 +9,18 @@ namespace Fuse.Preview
 {
 	class ReifyerLogAdapter
 	{
+		readonly IOutput _output;
 		readonly StringBuilderProgress _progress;
 
-		readonly Log _log;
-		public Log Log { get { return _log; } }
-
-		readonly Subject<IEventData> _events = new Subject<IEventData>();
-		public IObservable<IEventData> Events { get { return _events; } }
-
-		public ReifyerLogAdapter()
+		public ReifyerLogAdapter(IOutput output, StringBuilderProgress progress)
 		{
-			_progress = new StringBuilderProgress();
-			var errorList = new StringProgressErrorListAdapter(_progress);
-			var textWriter = new StringProgressTextWriterAdapter(_progress);
-			_log = new Log(errorList, textWriter);
+			_output = output;
+			_progress = progress;
 		}
 
 		public void Success(AbsoluteFilePath path)
 		{
-			_events.OnNext(new ReifyFileSuccessEvent()
+			_output.Write(new ReifyFileSuccessEvent()
 			{
 				Path = path.NativePath,
 				Message = _progress.Flush()
@@ -38,7 +29,7 @@ namespace Fuse.Preview
 
 		public void Error(AbsoluteFilePath path)
 		{
-			_events.OnNext(new ReifyFileErrorEvent()
+			_output.Write(new ReifyFileErrorEvent()
 			{
 				Path = path.NativePath,
 				Message = _progress.Flush()

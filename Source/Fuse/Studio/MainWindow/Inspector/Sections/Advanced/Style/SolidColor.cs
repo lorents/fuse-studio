@@ -16,8 +16,8 @@ namespace Outracks.Fuse.Inspector.Sections
 		static IControl CreateSolidColorRow(IElement solidColor, IEditorFactory editors)
 		{
 			var name = solidColor.UxName();
-			var color = solidColor.GetColor("Color", Color.White);
-			var opacity = solidColor.GetDouble("Opacity", 1.0);
+			var color = solidColor["Color"];
+			var opacity = solidColor["Opacity"];
 			//var mode = solidColor.GetEnum("BlendMode", BlendMode.Normal);
 			
 			return Layout.StackFromTop(

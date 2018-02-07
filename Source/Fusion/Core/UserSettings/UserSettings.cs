@@ -30,8 +30,14 @@ namespace Outracks.Fusion
 
 		public static IProperty<Optional<IEnumerable<T>>> List<T>(string name)
 		{
-			return Settings.Property<IEnumerable<T>>(name);
+			return Settings.List<T>(name);
 		}
+
+		public static IProperty<Optional<IEnumerable<T>>> List<T>(this ISettings settings, string name)
+		{
+			return settings.Property<IEnumerable<T>>(name);
+		}
+
 
 		public static IProperty<Optional<AbsoluteDirectoryPath>> Folder(string name)
 		{

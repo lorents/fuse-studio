@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Reactive.Linq;
 using Outracks.Fuse.Designer;
 
@@ -10,38 +9,20 @@ namespace Outracks.Fuse.Inspector.Editors
 
 	public class DropdownEditor
 	{
-		public static IControl Create<T>(IAttribute<T> property, IEditorFactory editors)
+		public static IControl Create<T>(IAttribute attribute, IEditorFactory editors, T defaultValue)
 			where T : struct
 		{
-			var objectProperty = property.Convert(t => (object)t, s => (s is T ? (T)s : default(T)));
-			var objectValues = Observable.Return(Enum.GetValues(typeof(T)).OfType<object>());
-			var placeholderText = property.Select(v => v.ToString()).AsText();
-			return Create(property, objectProperty, objectValues, editors, placeholderText);
-		}
-
-		public static IControl Create(
-			IAttribute<string> property,
-			IObservable<string[]> values,
-			IEditorFactory editors,
-			Text placeholderText = default(Text))
-		{
-			var objectProperty = property.Convert(p => (object) p, o => (o as string) ?? "");
-			var objectValues = (IObservable<IEnumerable<object>>)values;
-			return Create(property, objectProperty, objectValues, editors, placeholderText);
-		}
-
-		static IControl Create<T>(
-			IAttribute<T> attribute,
-			IProperty<object> objectValue,
-			IObservable<IEnumerable<object>> objectValues,
-			IEditorFactory editors,
-			Text placeholderText = default(Text))
-		{
+			var values = Enum.GetValues(typeof (T));
+			var placeholderText = attribute.StringValue.Select(v => v.ToString()).AsText();
 			var stroke = Theme.FieldStroke;
 			var arrowBrush = attribute.IsReadOnly.Select(ro => ro ? Theme.FieldStroke.Brush : Theme.Active).Switch();
+			
 			return Layout.Dock()
 				.Right(editors.ExpressionButton(attribute))
-				.Fill(DropDown.Create(objectValue, objectValues, nativeLook: false)
+				.Fill(DropDown.Create(
+						attribute.StringValue, 
+						Observable.Return(values.OfType<object>().Select(v => v.ToString())), 
+						nativeLook: false)
 					.WithOverlay(
 						Layout.Dock()
 							.Right(Arrow
@@ -52,7 +33,7 @@ namespace Outracks.Fuse.Inspector.Editors
 							.Fill(TextBox.Create(
 									attribute.StringValue,
 									foregroundColor: Theme.DefaultText)
-								.WithPlaceholderText(attribute.HasLocalValue(), placeholderText)
+								.WithPlaceholderText(attribute.HasValue, placeholderText)
 								.WithBackground(Theme.FieldBackground))
 							.WithPadding(new Thickness<Points>(1))
 							.WithOverlay(Shapes.Rectangle(stroke: stroke)))

@@ -1,5 +1,6 @@
 using System.Reactive.Linq;
 using Outracks.Fuse.Designer;
+using Outracks.Fuse.Editing;
 
 namespace Outracks.Fuse.Inspector.Sections
 {
@@ -33,8 +34,9 @@ namespace Outracks.Fuse.Inspector.Sections
 				Spacer.Medium,
 
 				stops
+					.ToObservableImmutableList()
 					.PoolPerElement((index, gradientStop) =>
-						CreateGradientStopRow(index, gradientStop.Switch(), editors))
+						CreateGradientStopRow(index, Element.Switch(gradientStop), editors))
 					.StackFromTop(separator: () => Spacer.Small),
 					
 				Spacer.Medium,
@@ -42,24 +44,22 @@ namespace Outracks.Fuse.Inspector.Sections
 				Buttons.DefaultButton(
 					text:"Remove Gradient Stop", 
 					cmd: stops
-						.Select(s => 
-							s.LastOrNone().MatchWith(
-								some: stop => Command.Enabled(() => stop.Cut()),
-								none: () => Command.Disabled))
+						.Select(stop => stop.Remove())
+						.LastOr(Command.Disabled)
 						.Switch()),
 				
 				Spacer.Small,
 
 				Buttons.DefaultButton(
 					text: "Add Gradient Stop", 
-					cmd: Command.Enabled(() => linearGradient.Paste(SourceFragment.FromString("<GradientStop Offset=\"1\"/>")))));
+					cmd: linearGradient.Insert(SourceFragment.FromString("<GradientStop Offset=\"1\"/>"))));
 		}
 
 		static IControl CreateGradientStopRow(int index, IElement gradientStop, IEditorFactory editors)
 		{
 			var stopName = gradientStop.UxName();
-			var stopOffset = gradientStop.GetDouble("Offset", 0.0);
-			var stopColor = gradientStop.GetColor("Color", Color.White);
+			var stopOffset = gradientStop["Offset"];//, 0.0);
+			var stopColor = gradientStop["Color"];//, Color.White);
 
 			var colorEditor = editors.Color(stopColor);
 			var offsetEditor = editors.Field(stopOffset, deferEdit: true);

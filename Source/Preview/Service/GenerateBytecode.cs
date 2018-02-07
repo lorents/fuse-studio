@@ -9,25 +9,35 @@ namespace Outracks.Simulator.Protocol
 		public string Type { get { return MessageType; } }
 
 		public Guid Id { get; private set; }
-		public ImmutableList<UxFileContents> UxFiles { get; private set; }
+		public ImmutableList<string> UxFilePaths { get; private set; }
 
-		public GenerateBytecode(Guid id, ImmutableList<UxFileContents> uxFiles)
+		public GenerateBytecode(Guid id, ImmutableList<string> uxFiles)
 		{
 			Id = id;
-			UxFiles = uxFiles;
+			UxFilePaths = uxFiles;
 		}
 			
 		public void WriteDataTo(BinaryWriter writer)
 		{
 			writer.WriteGuid(Id);
-			List.Write(writer, UxFiles, (Action<UxFileContents, BinaryWriter>)UxFileContents.Write);
+			List.Write(writer, UxFilePaths, (Action<string, BinaryWriter>)WriteUxFile);
 		}
 
 		public static GenerateBytecode ReadDataFrom(BinaryReader reader)
 		{
 			var id = reader.ReadGuid();
-			var uxFiles = List.Read(reader, (Func<BinaryReader, UxFileContents>)UxFileContents.Read);
+			var uxFiles = List.Read(reader, (Func<BinaryReader, string>)ReadUxFile);
 			return new GenerateBytecode(id, uxFiles);
+		}
+
+		static void WriteUxFile(string str, BinaryWriter writer)
+		{
+			writer.Write(str);
+		}
+
+		static string ReadUxFile(BinaryReader reader)
+		{
+			return reader.ReadString();
 		}
 
 	}

@@ -6,15 +6,15 @@
 	{
 		public static IControl Create(IElement element, IEditorFactory editors)
 		{
-			var startAngleRadians = element.GetAngle("StartAngle", 0.0);
-			var startAngleDegrees = element.GetAngle("StartAngleDegrees", 0.0);
+			var startAngleRadians = element["StartAngle"];
+			var startAngleDegrees = element["StartAngleDegrees"];
 
-			var endAngleRadians = element.GetAngle("EndAngle", 0.0);
-			var endAngleDegrees = element.GetAngle("EndAngleDegrees", 0.0);
+			var endAngleRadians = element["EndAngle"];
+			var endAngleDegrees = element["EndAngleDegrees"];
 			//var endAngle = endAngleRadians.Or(endAngleDegrees);
 
-			var lengthAngleRadians = element.GetAngle("LengthAngle", 0.0);
-			var lengthAngleDegrees = element.GetAngle("LengthAngleDegrees", 0.0);
+			var lengthAngleRadians = element["LengthAngle"];
+			var lengthAngleDegrees = element["LengthAngleDegrees"];
 			//var lengthAngle = lengthAngleRadians.Or(lengthAngleDegrees);
 
 			//lengthAngleRadians = lengthAngleRadians.And(endAngle.IsNotSet);

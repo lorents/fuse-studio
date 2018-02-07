@@ -11,12 +11,12 @@ namespace Outracks.Fuse.Designer
 	{
 		const int EnableDebugMenuClickCount = 10;
 
-		readonly IProject _project;
+		//readonly IProject _project;
 		readonly IProperty<Optional<bool>> _alwaysShowDebugMenuSetting;
 
-		internal Debug(IProject project)
+		internal Debug(/*IProject project,*/)
 		{
-			_project = project;
+			//_project = project;
 			_alwaysShowDebugMenuSetting = UserSettings.Bool("AlwaysShowDebugMenu");
 		}
 
@@ -76,7 +76,7 @@ namespace Outracks.Fuse.Designer
 
 			return
 				  Menu.Item("Open Debug Window", action: createDebugWindow)
-				+ Menu.Item("Random ux mutator", action: () => RandomMutatorWindow.Create(_project))
+				//+ Menu.Item("Random ux mutator", action: () => RandomMutatorWindow.Create(_project))
 				+ Menu.Item("Console output", action: ConsoleOutputWindow.Create)
 				+ Menu.Item("Icon viewer", action: IconPreviewWindow.Create);
 		}

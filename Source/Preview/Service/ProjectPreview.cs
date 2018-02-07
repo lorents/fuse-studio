@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Reactive.Concurrency;
@@ -9,103 +10,68 @@ using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
 using System.Threading.Tasks;
 using Outracks;
+using Outracks.Fuse;
 using Outracks.Fusion;
 using Outracks.IO;
 using Outracks.Simulator;
 using Outracks.Simulator.Bytecode;
 using Outracks.Simulator.Protocol;
 using Outracks.Simulator.Runtime;
-using Uno.ProjectFormat;
 
 namespace Fuse.Preview
 {
-	// These are temporary interfaces while refactoring
-	public interface IProjectLike
+	public class ProjectPreview : IPreview
 	{
-		IObservable<string> Name { get; }
-
-		IObservable<IBinaryMessage> Mutations { get; }
-
-		IObservable<IEnumerable<DocumentSource>> LatestSource { get; }
-
-		IObservable<AbsoluteDirectoryPath> BuildOutputDirectory { get; }
-
-		IObservable<AbsoluteDirectoryPath> RootDirectory { get; }
-
-		IObservable<IImmutableSet<AbsoluteFilePath>> BundleFiles { get; }
-
-		IObservable<IImmutableSet<AbsoluteFilePath>> FuseJsFiles { get; }
-
-		IObservable<IImmutableSet<PackageReference>> PackageReferences { get; }
-
-		IObservable<IImmutableSet<ProjectReference>> ProjectReferences { get; }
-	}
-
-
-	public class DocumentSource
-	{
-		public IDocumentLike LiveDocument { get; set; }
-		public UxFileContents FileContents { get; set; }
-	}
-
-	public interface IDocumentLike
-	{
-		void UpdateSimulatorIds();
-	}
-
-	public class ProjectPreview : IDisposable
-	{
-		readonly IProjectLike _project;
-		readonly IConnectableObservable<SimulatorHost> _simulatorHost;
 		readonly BuildOutputDirGenerator _buildOutputDirGenerator;
 		readonly AssetsWatcher _assetsWatcher;
-		readonly Subject<object> _rebuild = new Subject<object>();
-		readonly Subject<object> _refresh = new Subject<object>();
-		readonly Subject<string> _logMessages = new Subject<string>();
 		readonly ProxyServer _proxy;
+		readonly IOutput _output;
+		readonly IPreviewProcess _preview;
+		readonly CoalesceEntryCache _coalesceEntryCache;
+		readonly ProjectWatcher _project;
+
+		readonly AndroidPortReverser _portReverser = new AndroidPortReverser();
 
 		bool _isDisposed;
 		readonly IDisposable _dispose;
 
-		public IObservable<string> LogMessages
-		{
-			get
-			{
-				return _assetsWatcher.LogMessages
-					.Merge(_logMessages.Select(s => s + '\n'));
-			}
-		}
-	
 		public ProjectPreview(
-			IProjectLike project,
+			AbsoluteFilePath projectPath,
 			IFileSystem shell,
 			BuildOutputDirGenerator buildOutputDirGenerator, 
-			ProxyServer proxy)
+			ProxyServer proxy,
+			IOutput output)
 		{
-			Name = project.Name;
-			var simulatorHost = ProjectProcess.SpawnAsync().Replay(1);
+			_buildOutputDirGenerator = buildOutputDirGenerator;
+			_proxy = proxy;
+			_output = output;
 
-			var simulatorMessages = simulatorHost.Switch(p => p.Messages.RefCount()).Publish().RefCount();
+			var scheduler = Scheduler.Default;
+			var repository = new Repository(shell, scheduler, output);
+			var projectDir = projectPath.ContainingDirectory;
+			var projectFile = repository.OpenBinary(projectPath);
 
-			var assemblyBuilt = simulatorMessages.TryParse(AssemblyBuilt.MessageType, AssemblyBuilt.ReadDataFrom);
+			_project = ProjectWatcher.Create(projectFile, scheduler);
+			_assetsWatcher = new AssetsWatcher(shell, projectDir, scheduler, output);
+			
+			_preview = ProjectProcess.Spawn();
+			var simulatorMessages = _preview.Messages.RefCount();
+
 			var bytecodeGenerated = simulatorMessages.TryParse(BytecodeGenerated.MessageType, BytecodeGenerated.ReadDataFrom);
 			var bytecodeUpdated = simulatorMessages.TryParse(BytecodeUpdated.MessageType, BytecodeUpdated.ReadDataFrom);
 
-			_project = project;
-			_buildOutputDirGenerator = buildOutputDirGenerator;
-			_proxy = proxy;
-			_simulatorHost = simulatorHost;
-			_assetsWatcher = new AssetsWatcher(shell, project.RootDirectory, Scheduler.Default);
-			
 			var bytecode = bytecodeGenerated.Select(msg => msg.Bytecode);
 
 			_coalesceEntryCache = new CoalesceEntryCache();
-			var assets = project.BundleFiles.CombineLatest(project.FuseJsFiles, (a, b) => a.Concat(b));
+			var assets = _project.BundleFiles.Concat(_project.FuseJsFiles)
+				.ToObservableImmutableList()
+				.StartWith(System.Collections.Immutable.ImmutableList<AbsoluteFilePath>.Empty);
+
 			var reifyMessages = ReifyProject(bytecode, bytecodeUpdated, _coalesceEntryCache, assets);
 
 			var dependencyMessages = _assetsWatcher.UpdateChangedDependencies(bytecode.Select(bc => bc.Dependencies.ToImmutableHashSet()));
-			var bundleFileMessages = _assetsWatcher.UpdateChangedBundleFiles(project.BundleFiles);
-			var fuseJsFileMessages = _assetsWatcher.UpdateChangedFuseJsFiles(project.FuseJsFiles);
+			var bundleFileMessages = _assetsWatcher.UpdateChangedBundleFiles(_project.BundleFiles);
+			var fuseJsFileMessages = _assetsWatcher.UpdateChangedFuseJsFiles(_project.FuseJsFiles);
 
 			_dispose = Observable.Merge(
 					bundleFileMessages,
@@ -127,7 +93,7 @@ namespace Fuse.Preview
 
 					var writeMessages = _coalesceEntryCache
 						.ReplayFrom(-1)
-						.ObserveOn(TaskPoolScheduler.Default)
+						//.ObserveOn(new EventLoopScheduler())
 						.Subscribe(cacheEntry =>
 						{
 							if (isDisconnected)
@@ -183,107 +149,43 @@ namespace Fuse.Preview
 
 				});
 
-			Assembly = assemblyBuilt;
 			Port = socketServer.LocalEndPoint.Port;
-			Bytecode = bytecodeGenerated;
-			PackageReferences = project.PackageReferences;
-			ProjectReferences = project.ProjectReferences;
-
+			
 			ClientAdded = clientAdded;
 			ClientRemoved = clientRemoved;
 
-			Messages = Observable.Merge(
-				incommingMessages,
-				simulatorMessages);
+			Messages = Observable.Merge(incommingMessages, simulatorMessages);
+			
 			AccessCode = CodeGenerator.CreateRandomCode(5);
-
 		}
-	
-		public IDisposable Start(
-			IObservable<BuildProject> buildArgs,
-			IScheduler scheduler = null)
+
+
+		public string Build(BuildProject args)
 		{
-			scheduler = scheduler ?? Scheduler.Default;
+			var buildDir = _project.BuildOutputDirectory.FirstAsync().Wait();
+			var output = _buildOutputDirGenerator.Acquire(buildDir / new DirectoryName("Local") / new DirectoryName("Designer"));
+			args.OutputDir = output.NativePath;
+			args.Id = Guid.NewGuid();
 
-			var refresh = _refresh.Merge(Messages.TryParse(ReifyRequired.MessageType, ReifyRequired.ReadDataFrom));
+			var assembly = _preview.Build(args.ProjectPath, args.Defines.ToArray(), args.BuildLibraries, args.Verbose, output.NativePath);
 
-			var disposable = _simulatorHost.SubscribeUsing(host =>
-			{
-				var endedMessages = host.Messages.TryParse(Ended.MessageType, Ended.ReadDataFrom);
+			_buildOutputDirGenerator.Release(output);
 
-				return Disposable.Combine(
-					Disposable.Create(() => _proxy.RemoveProject(Port)),
-					
-					_project.Mutations
-						.Merge(_project.Mutations
-							.OfType<ReifyRequired>().StartWith(new ReifyRequired())
-							.WithLatestFromBuffered(_project.LatestSource, (signal, data) => data.ToArray())
-							.Do(
-								docs =>
-								{
-									foreach (var doc in docs)
-									{
-										doc.LiveDocument.UpdateSimulatorIds();
-									}
-								})
-							.Throttle(TimeSpan.FromSeconds(1.0 / 20.0), scheduler)
-							.ObserveOn(Application.MainThread)
-							.Select(docs => (IBinaryMessage)new GenerateBytecode(Guid.NewGuid(), List.ToImmutableList(docs.Select(doc => doc.FileContents)))))
-						.Merge(_rebuild.StartWith(new object())
-							.CombineLatest(buildArgs, (_, t) => t)
-							.WithLatestFromBuffered(_project.BuildOutputDirectory, (args, buildDir) =>
-							{
-								var output = _buildOutputDirGenerator.Acquire(buildDir / new DirectoryName("Local") / new DirectoryName("Designer"));
-								args.OutputDir = output.NativePath;
-								args.Id = Guid.NewGuid();
+			_proxy.AddProject(Port, AccessCode.ToString(), args.ProjectPath, args.Defines.ToArray());
 
-								return args;
-							})
-							.Do(args => _proxy.AddProject(
-								Port,
-								AccessCode.ToString(),
-								args.ProjectPath, 
-								args.Defines.ToArray())))
-						.Merge(refresh
-							.WithLatestFromBuffered(_project.LatestSource, (signal, data) => data.ToArray())
-							.Select(docs => new GenerateBytecode(Guid.NewGuid(), List.ToImmutableList(docs.Select(doc => doc.FileContents))))
-							.SkipUntil(endedMessages))
-						.Subscribe(host.Send),
-
-					endedMessages.Subscribe(ended =>
-					{
-						if (ended.Command.Type == BuildProject.MessageType)
-						{
-							_buildOutputDirGenerator.Release(ended.BuildDirectory);
-							Refresh();
-						}
-					}));
-			});
-
-			_simulatorHost.Connect();
-
-			return disposable;
+			return assembly;
 		}
 
-		public void Refresh()
+		public IDisposable LockBuild(string outputDir)
 		{
-			_refresh.OnNext(new object());
+			return _buildOutputDirGenerator.Lock(AbsoluteDirectoryPath.Parse(outputDir).ContainingDirectory);
 		}
 
-		public void Rebuild()
-		{
-			_rebuild.OnNext(new object());
-		}
-
-		/// <summary>
-		/// Prevents the specified build output directory from being overwritten by a rebuild, since that will fail if the assembly is loaded by a viewport
-		/// </summary>
-		public IDisposable LockBuild(AbsoluteDirectoryPath outputDir)
-		{
-			return _buildOutputDirGenerator.Lock(outputDir);
-		}
-
-		IObservable<CoalesceEntry> ReifyProject(IObservable<ProjectBytecode> bytecode, IObservable<BytecodeUpdated> bytecodeUpdated, CoalesceEntryCache cache, IObservable<IEnumerable<AbsoluteFilePath>> assets)
+		IObservable<CoalesceEntry> ReifyProject(
+			IObservable<ProjectBytecode> bytecode, 
+			IObservable<BytecodeUpdated> bytecodeUpdated, 
+			CoalesceEntryCache cache, 
+			IObservable<IEnumerable<AbsoluteFilePath>> assets)
 		{
 			int idx = 0;
 			var bytecodeUpdates = bytecodeUpdated.Select(m => m.ToCoalesceEntry(BytecodeUpdated.MessageType + (++idx)))
@@ -357,7 +259,7 @@ namespace Fuse.Preview
 			.CatchAndRetry(TimeSpan.FromSeconds(15),
 				e =>
 				{
-					_logMessages.OnNext("Failed to refresh because: " + e.Message);
+					_output.Write("Failed to refresh because: " + e.Message);
 				});
 
 			return Observable.Merge(clearOldUpdates, reify, bytecodeUpdates);
@@ -375,28 +277,42 @@ namespace Fuse.Preview
 
 			_dispose.Dispose();
 			_assetsWatcher.Dispose();
+			_proxy.RemoveProject(Port);
 
 			_isDisposed = true;
 		}
 
-		public IObservable<BytecodeGenerated> Bytecode { get; private set; }
+		public Code AccessCode { get; private set; }
 
-		public IObservable<AssemblyBuilt> Assembly { get; private set; }
-	
+		public void EnableUsbMode()
+		{
+			_portReverser.ReversePortOrLogErrors(ReportFactory.FallbackReport, Port, Port);
+			_proxy.UpdateReversedPorts(true);
+		}
+
 		public int Port { get; private set; }
 
 		public IObservable<string> ClientRemoved { get; set; }
 		public IObservable<string> ClientAdded { get; set; }
 
 		public IObservable<IBinaryMessage> Messages { get; private set; }
+	
 
-		public readonly Code AccessCode;
-		readonly CoalesceEntryCache _coalesceEntryCache;
+		public void Refresh()
+		{
+			_preview.Refresh();
+		}
 
-		public IObservable<IImmutableSet<PackageReference>> PackageReferences { get; private set; }
+		public void Clean()
+		{
+			_preview.Clean();
+		}
 
-		public IObservable<IImmutableSet<ProjectReference>> ProjectReferences { get; private set; }
+		public bool TryUpdateAttribute(ObjectIdentifier element, string attribute, string value)
+		{
+			return _preview.TryUpdateAttribute(element, attribute, value);
+		}
 
-		public readonly IObservable<string> Name;
+
 	}
 }
