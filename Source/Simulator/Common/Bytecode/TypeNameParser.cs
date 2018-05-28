@@ -36,7 +36,9 @@ namespace Outracks.Simulator.Bytecode
 
 		TypeName ParseSingleTypeName(Optional<TypeName> containingType = default(Optional<TypeName>))
 		{
-			var typeName = new TypeName(containingType, _tokens[_idx++], ParsePossibleGenericArguments().ToImmutableList());
+			var name = _tokens[_idx++];
+			var index = name.OrdinalLastIndexOf("`"); // Some type names in UXIL look like Fuse.Animation.Change`1<float> for some reason
+			var typeName = new TypeName(containingType, index == -1 ? name : name.Substring(0, index), ParsePossibleGenericArguments().ToImmutableList());
 			return typeName;
 		}
 
