@@ -253,7 +253,7 @@ namespace Outracks.Simulator.Client
 			return TryInvokeExtension.Try(
 				() => (type.IsValueType && args.Length == 0) 
 					? FormatterServices.GetUninitializedObject(type)
-					: type.GetConstructors().First(c => c.GetParameters().ParametersMatch(args)).Invoke(args));
+					: Activator.CreateInstance(type, args));
 		}
 
 		public bool IsSubtype(object obj, string typeName)
