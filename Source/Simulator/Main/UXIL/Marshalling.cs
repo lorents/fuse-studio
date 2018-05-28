@@ -66,7 +66,7 @@ namespace Outracks.Simulator.UXIL
 
 		public static TypeName GetTypeName(this IDataType dt)
 		{
-			return TypeName.Parse(dt.QualifiedName);
+			return TypeName.Parse(dt.FullName);
 		}
 
 		public static TypeMemberName GetMemberName(this Event ev)
